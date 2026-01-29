@@ -1,0 +1,87 @@
+# Build directories
+builddir/
+build/
+.mesonbuild/
+
+# Object files
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+
+# Executables
+UserlandVM
+*.exe
+guest_loader_32bit
+TestX86
+
+# Large binary files and archives
+*.zip
+*.tar.gz
+*.tar.bz2
+*.7z
+*.hpk
+*.pkg
+haiku-hrev59189.zip
+
+# System libraries and binaries
+sysroot/
+*.so.*
+*.a
+*.lib
+
+# Debug and temporary files
+*.log
+*.tmp
+*.bak
+*~
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.clangd/
+compile_commands.json
+
+# Git
+.git/
+.gitignore
+
+# Documentation files (moved to docs/)
+*.md
+*.txt
+!README.md
+!meson.build
+
+# Test outputs
+test_*.cpp
+test_*.py
+test_*.sh
+
+# Downloaded packages
+downloads/
+packages/
+
+# Backup files
+*.orig
+*.rej
+
+# Editor files
+*.swp
+*.swo
+*#
+
+# GDB files
+.gdb_history
+gdb*.txt
+gdb*.log
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Generated files
+*.generated.*
+*.d
