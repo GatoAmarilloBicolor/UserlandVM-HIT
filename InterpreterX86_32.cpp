@@ -260,17 +260,34 @@ status_t InterpreterX86_32::ExecuteInstruction(GuestContext &context,
     instr_count_debug++;
   }
 
-  // Read instruction from EIP. The address space will interpret this correctly
-  // in direct memory mode
-  status_t status =
-      fAddressSpace.Read((uint32)eip_addr, instr_buffer, sizeof(instr_buffer));
+  // Read instruction from EIP
+  // In direct memory mode on 64-bit hosts, we need to use the full 64-bit address
+  // since the AddressSpace::Read() interface only accepts 32-bit addresses
+  status_t status;
+  
+  if (eip_addr > 0xFFFFFFFFUL) {
+    // 64-bit address - try direct memory access
+    printf("[INTERPRETER] Direct memory access for 64-bit EIP: 0x%lx\n", eip_addr);
+    fflush(stdout);
+    uint8_t* code_ptr = (uint8_t*)eip_addr;
+    memcpy(instr_buffer, code_ptr, sizeof(instr_buffer));
+    status = B_OK;
+  } else {
+    // Fits in 32 bits, use normal address space interface
+    status = fAddressSpace.Read((uint32)eip_addr, instr_buffer, sizeof(instr_buffer));
+    if (status != B_OK) {
+      printf("[INTERPRETER] Failed to read memory at vaddr=0x%08x\n", regs.eip);
+      printf("[INTERPRETER] Current state:\n");
+      printf("  EAX=0x%08x EBX=0x%08x ECX=0x%08x EDX=0x%08x\n", regs.eax,
+             regs.ebx, regs.ecx, regs.edx);
+      printf("  ESI=0x%08x EDI=0x%08x EBP=0x%08x ESP=0x%08x\n", regs.esi,
+             regs.edi, regs.ebp, regs.esp);
+      return status;
+    }
+  }
+  
   if (status != B_OK) {
-    printf("[INTERPRETER] Failed to read memory at vaddr=0x%08x\n", regs.eip);
-    printf("[INTERPRETER] Current state:\n");
-    printf("  EAX=0x%08x EBX=0x%08x ECX=0x%08x EDX=0x%08x\n", regs.eax,
-           regs.ebx, regs.ecx, regs.edx);
-    printf("  ESI=0x%08x EDI=0x%08x EBP=0x%08x ESP=0x%08x\n", regs.esi,
-           regs.edi, regs.ebp, regs.esp);
+    printf("[INTERPRETER] Failed to read instruction at EIP=0x%lx\n", eip_addr);
     return status;
   }
 
