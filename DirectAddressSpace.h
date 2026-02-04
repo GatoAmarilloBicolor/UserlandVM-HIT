@@ -26,6 +26,14 @@ public:
   virtual ~DirectAddressSpace();
 
   virtual status_t Init(size_t size);
+  
+  // Set guest memory base for direct memory access (bypass translation)
+  // This allows using malloc'd host memory directly for guest images
+  void SetGuestMemoryBase(addr_t base, size_t size) {
+    fGuestBaseAddress = base;
+    fGuestSize = size;
+    fUseDirectMemory = true;
+  }
 
   virtual status_t Read(uint32_t guestAddress, void *buffer,
                         size_t size) override;
@@ -57,6 +65,7 @@ private:
   area_id fArea;
   addr_t fGuestBaseAddress;
   size_t fGuestSize;
+  bool fUseDirectMemory = false;  // If true, bypass translation and use direct memory access
 
   // Simple address translation table
   struct AddressMap {

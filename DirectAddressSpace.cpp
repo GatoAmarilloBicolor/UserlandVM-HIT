@@ -64,6 +64,14 @@ DirectAddressSpace::Read(uint32_t guestAddress, void* buffer, size_t size)
 	if (!buffer)
 		return B_BAD_VALUE;
 	
+	// If using direct memory mode, treat guest address as direct host pointer
+	if (fUseDirectMemory) {
+		// Direct access: guestAddress is a host pointer value
+		uint8_t* source = (uint8_t*)guestAddress;
+		memcpy(buffer, source, size);
+		return B_OK;
+	}
+	
 	// Translate virtual address to offset
 	uint32_t offset = TranslateAddress(guestAddress);
 	
@@ -114,6 +122,14 @@ DirectAddressSpace::Write(uint32_t guestAddress, const void* buffer, size_t size
 {
 	if (!buffer)
 		return B_BAD_VALUE;
+	
+	// If using direct memory mode, treat guest address as direct host pointer
+	if (fUseDirectMemory) {
+		// Direct access: guestAddress is a host pointer value
+		uint8_t* dest = (uint8_t*)guestAddress;
+		memcpy(dest, buffer, size);
+		return B_OK;
+	}
 	
 	// Translate virtual address to offset
 	uint32_t offset = TranslateAddress(guestAddress);

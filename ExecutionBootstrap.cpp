@@ -72,6 +72,12 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath,
     }
   }
 
+  // Note: DirectAddressSpace currently has limitations:
+  // - It's designed to translate guest virtual addresses to offsets in a contiguous block
+  // - But our loaded images are in malloc'd host memory at arbitrary addresses
+  // - For now, we bypass address translation by using direct host pointers in the interpreter
+  // TODO: Implement proper memory mapping to support address space isolation
+
   // Allocate stack for guest program
   ctx.stackBase = AllocateStack(ctx.stackSize);
   if (!ctx.stackBase) {
@@ -83,12 +89,6 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath,
   printf("[X86] Stack allocated at %p, sp=%#x\n", ctx.stackBase,
          ctx.stackPointer);
   fflush(stdout);
-
-  // Setup environment (Commpage, TLS)
-  if (!SetupX86Environment(ctx, argv, env)) {
-    fprintf(stderr, "[X86] Failed to setup environment\n");
-    return 1;
-  }
 
   // Build the stack with arguments
   if (!BuildX86Stack(ctx, argv, env)) {
@@ -103,10 +103,26 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath,
   fflush(stdout);
 
   // Create address space wrapper for guest memory
+  // Using direct memory mode since we load binaries into host malloc'd memory
   DirectAddressSpace addressSpace;
+  addressSpace.SetGuestMemoryBase(0, 0);  // Placeholder, direct memory mode enabled
+  printf("[X86] Direct memory mode enabled for address space\n");
+  fflush(stdout);
+  
+  // Setup environment (Commpage, TLS) - must be done AFTER address space is ready
+  printf("[X86] About to setup environment\n");
+  fflush(stdout);
+  if (!SetupX86Environment(ctx, argv, env, addressSpace)) {
+    fprintf(stderr, "[X86] Failed to setup environment\n");
+    return 1;
+  }
+  printf("[X86] Environment setup complete\n");
+  fflush(stdout);
   
   // Create X86_32GuestContext for interpreter
   X86_32GuestContext guestContext(addressSpace);
+  printf("[X86] Guest context created\n");
+  fflush(stdout);
   
   // Set initial registers
   X86_32Registers &regs = guestContext.Registers();
@@ -196,26 +212,21 @@ bool ExecutionBootstrap::BuildX86Stack(ProgramContext &ctx, char **argv,
 }
 
 bool ExecutionBootstrap::SetupX86Environment(ProgramContext &ctx, char **argv,
-                                             char **env) {
+                                              char **env, DirectAddressSpace &addressSpace) {
   (void)ctx;
   (void)argv;
   (void)env;
   printf("[X86] Setting up execution environment\n");
+  fflush(stdout);
 
-  // Create a temporary AddressSpace that maps to the host 32-bit window
-  DirectAddressSpace space;
+  // Setup commpage (skipped for now - vm32_create_area hangs)
+  // TODO: Fix vm32_create_area blocking issue
+  printf("[X86] Commpage setup skipped (TODO: fix vm32_create_area)\n");
+  fflush(stdout);
 
-  // Setup commpage
-  uint32_t commpageAddr = 0;
-  if (CommpageManager::Setupx86Commpage(space, commpageAddr) == B_OK) {
-    printf("[X86] Commpage initialized at 0x%08x\n", commpageAddr);
-  }
-
-  // Setup thread local storage (TLS)
-  printf("[X86] Initializing TLS\n");
-  if (TLSSetup::Initialize(space, 1) != B_OK) {
-    printf("[X86] WARNING: TLS setup failed\n");
-  }
+  // Setup thread local storage (TLS) - skipped for now  
+  printf("[X86] TLS setup skipped (TODO: fix TLS initialization)\n");
+  fflush(stdout);
 
   return true;
 }

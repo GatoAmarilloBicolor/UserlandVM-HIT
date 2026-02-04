@@ -3,6 +3,7 @@
 #include "Loader.h"
 #include "DynamicLinker.h"
 #include "RelocationProcessor.h"
+#include "DirectAddressSpace.h"
 #include <OS.h>
 
 // Execute x86 32-bit binaries on x86 64-bit host
@@ -24,7 +25,7 @@ private:
 		DynamicLinker *linker;  // For loading dependencies
 	};
 
-	bool SetupX86Environment(ProgramContext &ctx, char **argv, char **env);
+	bool SetupX86Environment(ProgramContext &ctx, char **argv, char **env, DirectAddressSpace &addressSpace);
 	bool BuildX86Stack(ProgramContext &ctx, char **argv, char **env);
 	void *AllocateStack(size_t size);
 	bool LoadDependencies(ProgramContext &ctx, ElfImage *image);
