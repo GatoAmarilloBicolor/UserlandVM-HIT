@@ -394,31 +394,65 @@ template class ElfImageImpl<Elf64Class>;
 
 ElfImage *ElfImage::Load(const char *path)
 {
+	printf("[ELF] Loading file: %s\n", path);
+	fflush(stdout);
+	
 	ObjectDeleter<ElfImage> image;
 	FileCloser file(fopen(path, "rb"));
-	if (!file.IsSet()) abort();
+	if (!file.IsSet()) {
+		printf("[ELF] ERROR: Failed to open file: %s\n", path);
+		return NULL;
+	}
+	
+	printf("[ELF] File opened, reading ELF header\n");
+	fflush(stdout);
+	
 	uint8 ident[EI_NIDENT];
-	FileRead(file.Get(), ident, sizeof(ident));
+	if (fread(ident, sizeof(ident), 1, file.Get()) != 1) {
+		printf("[ELF] ERROR: Failed to read ELF identification\n");
+		return NULL;
+	}
+	
+	printf("[ELF] ELF header read: magic=%02x%02x%02x%02x\n", 
+	       ident[EI_MAG0], ident[EI_MAG1], ident[EI_MAG2], ident[EI_MAG3]);
+	fflush(stdout);
+	
 	if (!(
 		(ident[EI_MAG0] == ELFMAG0 &&
 		ident[EI_MAG1] == ELFMAG1 &&
 		ident[EI_MAG2] == ELFMAG2 &&
 		ident[EI_MAG3] == ELFMAG3))
-	) abort();
+	) {
+		printf("[ELF] ERROR: Invalid ELF magic number\n");
+		return NULL;
+	}
+	
+	printf("[ELF] ELF magic valid, class=%u\n", ident[EI_CLASS]);
+	fflush(stdout);
+	
 	switch (ident[EI_CLASS]) {
 		case ELFCLASS32:
+			printf("[ELF] 32-bit ELF detected\n");
 			image.SetTo(new ElfImageImpl<Elf32Class>());
 			break;
 		case ELFCLASS64:
+			printf("[ELF] 64-bit ELF detected\n");
 			image.SetTo(new ElfImageImpl<Elf64Class>());
 			break;
 		default:
-			abort();
+			printf("[ELF] ERROR: Unknown ELF class: %u\n", ident[EI_CLASS]);
+			return NULL;
 	}
 
 	image->fPath.SetTo(new char[strlen(path) + 1]);
 	strcpy(image->fPath.Get(), path);
 	image->fFile.SetTo(file.Detach());
+	
+	printf("[ELF] Starting ELF image load\n");
+	fflush(stdout);
 	image->DoLoad();
+	printf("[ELF] ELF image load complete\n");
+	fflush(stdout);
+	
 	return image.Detach();
 }

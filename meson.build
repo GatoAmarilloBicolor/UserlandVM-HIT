@@ -54,6 +54,7 @@ executable(
 	'Loader.cpp',
 	'Syscalls.cpp',
 	'DynamicLinker.cpp',
+	'ExecutionBootstrap.cpp',
 	'VirtualCpuX86Native.cpp',
 	'VirtualCpuX86NativeCode.S',
 	'VirtualCpuX86Test.cpp',

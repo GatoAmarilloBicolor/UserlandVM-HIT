@@ -27,6 +27,8 @@
 #include "Loader.h"
 #include "Syscalls.h"
 #include "VirtualCpuRiscV.h"
+#include "VirtualCpuX86Native.h"
+#include "ExecutionBootstrap.h"
 
 #define CheckRet(err) {status_t _err = (err); if (_err < B_OK) return _err;}
 
@@ -330,6 +332,45 @@ int main(int argc, char **argv, char **env)
 		return 0;
 	}
 
+	// Get the program path
+	const char *programPath = curArgv[0];
+	printf("[MAIN] Program: %s\n", programPath);
+	fflush(stdout);
+
+	// Load program and detect architecture
+	ObjectDeleter<ElfImage> image(ElfImage::Load(programPath));
+	if (!image.IsSet()) {
+		fprintf(stderr, "[MAIN] Failed to load program\n");
+		return 1;
+	}
+
+	const char *arch = image->GetArchString();
+	printf("[MAIN] Detected architecture: %s\n", arch ? arch : "unknown");
+	fflush(stdout);
+
+	// ===== EXECUTE BASED ON DETECTED ARCHITECTURE =====
+
+	if (arch && strcmp(arch, "x86") == 0) {
+		// x86 32-bit Haiku program
+		printf("[MAIN] Executing x86 32-bit Haiku program\n");
+		fflush(stdout);
+
+		ExecutionBootstrap bootstrap;
+		return bootstrap.ExecuteProgram(programPath, curArgv, env);
+	}
+
+	if (arch && (strcmp(arch, "riscv64") == 0 || strcmp(arch, "riscv32") == 0)) {
+		// RISC-V program - use original execution path
+		printf("[MAIN] Executing RISC-V program\n");
+		fflush(stdout);
+		// Fall through to RISC-V execution code below
+	} else {
+		fprintf(stderr, "[MAIN] Unsupported architecture: %s\n", arch ? arch : "unknown");
+		return 1;
+	}
+
+	// ===== RISC-V EXECUTION PATH (Original Logic) =====
+
 	CObjectDeleter<void, int, dlclose> virtualCpuAddon;
 	const char *addonName = "./librvvm2.so";
 	if (endArgv - curArgv >= 1 && strcmp(curArgv[0], "--engine") == 0) {
@@ -352,21 +393,9 @@ int main(int argc, char **argv, char **env)
 		return 1;
 	}
 
-	printf("[MAIN] Loading runtime loader and program...\n");
-	fflush(stdout);
-	
-	ObjectDeleter<ElfImage> image(ElfImage::Load("../runtime_loader.riscv64"));
-	printf("[MAIN] Runtime loader loaded at %p\n", image->GetImageBase());
-	fflush(stdout);
-
 	user_space_program_args args{};
 	ArrayDeleter<uint8> argsMem;
-	//char *env[] = {"A=1", NULL};
-	printf("[MAIN] Building arguments...\n");
-	fflush(stdout);
 	BuildArgs(argsMem, args, curArgv, env);
-	printf("[MAIN] Arguments built\n");
-	fflush(stdout);
 
 	void *hostCommpage = __gCommPageAddress;
 	real_time_data *hostRtData = (real_time_data*)(((uint64*)hostCommpage)[COMMPAGE_ENTRY_REAL_TIME_DATA] + (uint8*)hostCommpage);
