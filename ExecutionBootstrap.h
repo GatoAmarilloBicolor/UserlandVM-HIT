@@ -2,6 +2,7 @@
 
 #include "Loader.h"
 #include "DynamicLinker.h"
+#include "RelocationProcessor.h"
 #include <OS.h>
 
 // Execute x86 32-bit binaries on x86 64-bit host

@@ -4,6 +4,9 @@
 #include "DynamicLinker.h"
 #include "TLSSetup.h"
 #include "VirtualCpuX86Native.h"
+#include "X86_32GuestContext.h"
+#include "OptimizedX86Executor.h"
+#include "Haiku32SyscallDispatcher.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -51,6 +54,24 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath,
     }
   }
 
+  // Resolve dynamic symbols and apply relocations
+  if (image->IsDynamic()) {
+    printf("[X86] Resolving dynamic symbols\n");
+    fflush(stdout);
+    if (!ResolveDynamicSymbols(ctx, image.Get())) {
+      fprintf(stderr, "[X86] Failed to resolve symbols (continuing anyway)\n");
+    }
+
+    printf("[X86] Applying relocations\n");
+    fflush(stdout);
+    RelocationProcessor reloc_processor(ctx.linker);
+    status_t reloc_status = reloc_processor.ProcessRelocations(image.Get());
+    if (reloc_status != B_OK) {
+      fprintf(stderr, "[X86] Failed to apply relocations: %d\n", reloc_status);
+      // Continue anyway - some relocations might be optional
+    }
+  }
+
   // Allocate stack for guest program
   ctx.stackBase = AllocateStack(ctx.stackSize);
   if (!ctx.stackBase) {
@@ -81,23 +102,44 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath,
   printf("[X86] ===== Program Output =====\n");
   fflush(stdout);
 
-  // Create VirtualCpuX86Native and execute
-  VirtualCpuX86Native cpu;
-
+  // Create address space wrapper for guest memory
+  DirectAddressSpace addressSpace;
+  
+  // Create X86_32GuestContext for interpreter
+  X86_32GuestContext guestContext(addressSpace);
+  
   // Set initial registers
-  cpu.Ip() = ctx.entryPoint;
-  cpu.Regs()[4] = ctx.stackPointer; // ESP = stack pointer
-
-  printf("[X86] CPU initialized, jumping to entry point\n");
+  X86_32Registers &regs = guestContext.Registers();
+  regs.eax = 0;
+  regs.ebx = 0;
+  regs.ecx = 0;
+  regs.edx = 0;
+  regs.esi = 0;
+  regs.edi = 0;
+  regs.esp = ctx.stackPointer;
+  regs.ebp = ctx.stackPointer;
+  regs.eip = ctx.entryPoint;
+  regs.eflags = 0x202; // IF and reserved bits
+  
+  printf("[X86] Guest context initialized\n");
   fflush(stdout);
 
-  // Run the program
-  cpu.Run();
+  // Create syscall dispatcher
+  Haiku32SyscallDispatcher syscallDispatcher(&addressSpace);
+  
+  // Run the interpreter
+  printf("[X86] Starting x86-32 interpreter\n");
+  fflush(stdout);
+  
+  // Execute using the interpreter
+  OptimizedX86Executor executor(addressSpace, syscallDispatcher);
+  uint32 exitCode = 0;
+  executor.Execute(guestContext, exitCode);
 
-  printf("[X86] ===== Program Terminated =====\n");
+  printf("[X86] ===== Program Terminated with code %u =====\n", exitCode);
   fflush(stdout);
 
-  return 0;
+  return exitCode;
 }
 
 void *ExecutionBootstrap::AllocateStack(size_t size) {
@@ -215,7 +257,23 @@ bool ExecutionBootstrap::LoadDependencies(ProgramContext &ctx,
 }
 
 bool ExecutionBootstrap::ResolveDynamicSymbols(ProgramContext &ctx,
-                                               ElfImage *image) {
-  // TODO: Implement symbol resolution
+                                                ElfImage *image) {
+  if (!image || !image->IsDynamic()) {
+    return true;
+  }
+
+  printf("[X86] Resolving dynamic symbols\n");
+  fflush(stdout);
+
+  // For now, just verify that libroot.so was loaded
+  // Full symbol resolution would happen here
+  ElfImage *libroot = ctx.linker->GetLibrary("libroot.so");
+  if (!libroot) {
+    printf("[X86] Warning: libroot.so not loaded, symbols may not resolve\n");
+    // Continue anyway - some symbols might be in the binary itself
+    return true;
+  }
+
+  printf("[X86] libroot.so available for symbol resolution\n");
   return true;
 }
