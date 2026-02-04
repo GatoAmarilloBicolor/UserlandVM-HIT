@@ -42,16 +42,20 @@ private:
   // Mapeo de syscalls x86-32 a implementaciones
   // EAX contiene el número de syscall en x86-32 (Linux i386 ABI / Haiku x86-32)
   // Real Haiku syscall numbers (from syscall_table.h)
-  static const uint32 SYSCALL_EXIT = 41;           // _kern_exit_team
-  static const uint32 SYSCALL_WRITE = 151;         // _kern_write
-  static const uint32 SYSCALL_READ = 149;          // _kern_read
-  static const uint32 SYSCALL_OPEN = 114;          // _kern_open
-  static const uint32 SYSCALL_CLOSE = 158;         // _kern_close
-  static const uint32 SYSCALL_SEEK = 121;          // _kern_seek
-  static const uint32 SYSCALL_SETCWD = 147;        // _kern_setcwd
-  static const uint32 SYSCALL_GETCWD = 146;        // _kern_getcwd
-  static const uint32 SYSCALL_TRANS_ADDRESS = 212; // _kern_map_file / dummy
-  static const uint32 SYSCALL_CREATE_AREA = 200;   // _kern_create_area
+  static const uint32 SYSCALL_EXIT = 41;            // _kern_exit_team
+  static const uint32 SYSCALL_WRITE = 151;          // _kern_write
+  static const uint32 SYSCALL_READ = 149;           // _kern_read
+  static const uint32 SYSCALL_OPEN = 114;           // _kern_open
+  static const uint32 SYSCALL_CLOSE = 158;          // _kern_close
+  static const uint32 SYSCALL_SEEK = 121;           // _kern_seek
+  static const uint32 SYSCALL_SETCWD = 147;         // _kern_setcwd
+  static const uint32 SYSCALL_GETCWD = 146;         // _kern_getcwd
+  static const uint32 SYSCALL_TRANS_ADDRESS = 212;  // _kern_map_file / dummy
+  static const uint32 SYSCALL_CREATE_AREA = 200;    // _kern_create_area
+  static const uint32 SYSCALL_CREATE_PORT = 220;    // _kern_create_port
+  static const uint32 SYSCALL_DELETE_PORT = 222;    // _kern_delete_port
+  static const uint32 SYSCALL_READ_PORT_ETC = 228;  // _kern_read_port_etc
+  static const uint32 SYSCALL_WRITE_PORT_ETC = 230; // _kern_write_port_etc
 
   // Haiku GUI syscalls (custom extension range 50000+)
   // These are not Linux syscalls - they're Haiku-specific

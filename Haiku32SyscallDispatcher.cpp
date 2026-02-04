@@ -145,6 +145,57 @@ status_t Haiku32SyscallDispatcher::Dispatch(GuestContext &context) {
     break;
   }
 
+  case SYSCALL_CREATE_PORT: {
+    int32 queue_length = (int32)get_arg(0);
+    uint32 name_ptr = get_arg(1);
+    DebugPrintf("_kern_create_port(queue=%d, name=0x%08x)\n", queue_length,
+                name_ptr);
+    // For now, return a Dummy port ID > 0
+    result = 100 + queue_length;
+    status = B_OK;
+    break;
+  }
+
+  case SYSCALL_WRITE_PORT_ETC: {
+    int32 port = (int32)get_arg(0);
+    int32 code = (int32)get_arg(1);
+    uint32 buf = get_arg(2);
+    uint32 size = get_arg(3);
+    uint32 flags = get_arg(4);
+    uint64 timeout = ((uint64)get_arg(6) << 32) | get_arg(5);
+
+    DebugPrintf("_kern_write_port_etc(port=%d, code=%d, size=%u)\n", port, code,
+                size);
+    // Stub
+    status = B_OK;
+    break;
+  }
+
+  case SYSCALL_READ_PORT_ETC: {
+    int32 port = (int32)get_arg(0);
+    int32 code_ptr = (int32)get_arg(1);
+    uint32 buf = get_arg(2);
+    uint32 size = get_arg(3);
+    uint32 flags = get_arg(4);
+    uint64 timeout = ((uint64)get_arg(6) << 32) | get_arg(5);
+
+    DebugPrintf("_kern_read_port_etc(port=%d)\n", port);
+    // Stub: Block forever or return error if not implemented
+    // For UI loop, we might need to fake messages
+    status = B_OK;
+    // We should return message size in result if successful? Haiku returns
+    // ssize_t
+    result = 0;
+    break;
+  }
+
+  case SYSCALL_DELETE_PORT: {
+    int32 port = (int32)get_arg(0);
+    DebugPrintf("_kern_delete_port(%d)\n", port);
+    status = B_OK;
+    break;
+  }
+
   default:
     DebugPrintf("UNIMPLEMENTED Haiku Syscall %u\n", syscall_num);
     fprintf(stderr, "[SYSCALL] ERROR: Haiku Syscall %u not implemented\n",
