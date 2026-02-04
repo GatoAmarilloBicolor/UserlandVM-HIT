@@ -352,12 +352,21 @@ int main(int argc, char **argv, char **env)
 		return 1;
 	}
 
+	printf("[MAIN] Loading runtime loader and program...\n");
+	fflush(stdout);
+	
 	ObjectDeleter<ElfImage> image(ElfImage::Load("../runtime_loader.riscv64"));
+	printf("[MAIN] Runtime loader loaded at %p\n", image->GetImageBase());
+	fflush(stdout);
 
 	user_space_program_args args{};
 	ArrayDeleter<uint8> argsMem;
 	//char *env[] = {"A=1", NULL};
+	printf("[MAIN] Building arguments...\n");
+	fflush(stdout);
 	BuildArgs(argsMem, args, curArgv, env);
+	printf("[MAIN] Arguments built\n");
+	fflush(stdout);
 
 	void *hostCommpage = __gCommPageAddress;
 	real_time_data *hostRtData = (real_time_data*)(((uint64*)hostCommpage)[COMMPAGE_ENTRY_REAL_TIME_DATA] + (uint8*)hostCommpage);

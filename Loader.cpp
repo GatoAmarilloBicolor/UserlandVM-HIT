@@ -51,24 +51,43 @@ void ElfImageImpl<Class>::LoadSegments()
 		}
 	}
 	fSize = maxAdr - minAdr + 1;
+	
+	printf("[ELF] Loading image: min=%#" B_PRIx64 " max=%#" B_PRIx64 " size=%#" B_PRIx64 "\n", 
+		   (uint64)minAdr, (uint64)maxAdr, (uint64)fSize);
+	
 	if constexpr(std::is_same<Class, Elf32Class>()) {
 		fArea.SetTo(vm32_create_area("image", &fBase, B_ANY_ADDRESS, fSize, B_NO_LOCK, B_READ_AREA | B_WRITE_AREA | B_EXECUTE_AREA));
 	} else {
 		fArea.SetTo(create_area("image", &fBase, B_ANY_ADDRESS, fSize, B_NO_LOCK, B_READ_AREA | B_WRITE_AREA | B_EXECUTE_AREA));
 	}
+	
+	if (!fArea.IsSet()) {
+		printf("[ELF] ERROR: Failed to create area for image\n");
+		abort();
+	}
+	
 	fDelta = (Address)(addr_t)fBase - minAdr;
-	//printf("delta: %#" B_PRIx64 "\n", fDelta);
+	printf("[ELF] Image base: %p, delta: %#" B_PRIx64 "\n", fBase, fDelta);
 	fEntry = FromVirt(fHeader.e_entry);
+	printf("[ELF] Entry point: %p\n", fEntry);
+	
 	for (uint32 i = 0; i < fHeader.e_phnum; i++) {
 		typename Class::Phdr &phdr = fPhdrs[i];
 		switch (phdr.p_type) {
 			case PT_LOAD: {
+				printf("[ELF] Loading segment %u: vaddr=%#" B_PRIx64 " filesz=%#" B_PRIx64 " memsz=%#" B_PRIx64 "\n",
+					   i, (uint64)phdr.p_vaddr, (uint64)phdr.p_filesz, (uint64)phdr.p_memsz);
 				fseek(fFile.Get(), phdr.p_offset, SEEK_SET);
 				FileRead(fFile.Get(), FromVirt(phdr.p_vaddr), phdr.p_filesz);
 				break;
 			}
 			case PT_DYNAMIC: {
+				printf("[ELF] Found PT_DYNAMIC at vaddr=%#" B_PRIx64 "\n", (uint64)phdr.p_vaddr);
 				fDynamic = (typename Class::Dyn*)FromVirt(phdr.p_vaddr);
+				break;
+			}
+			case PT_INTERP: {
+				printf("[ELF] Interpreter segment found\n");
 				break;
 			}
 		}
@@ -250,29 +269,54 @@ void ElfImageImpl<Class>::Register()
 template<typename Class>
 void ElfImageImpl<Class>::LoadDynamic()
 {
-	if (!fDynamic) return;
+	if (!fDynamic) {
+		printf("[ELF] No PT_DYNAMIC section found\n");
+		return;
+	}
+
+	printf("[ELF] Processing PT_DYNAMIC section at %p\n", fDynamic);
 
 	// Find string table and symbol table pointers
+	int dynCnt = 0;
 	for (typename Class::Dyn *dyn = fDynamic; dyn->d_tag != DT_NULL; dyn++) {
+		dynCnt++;
+		if (dynCnt > 1000) {
+			printf("[ELF] ERROR: Too many DT entries, likely corrupted\n");
+			break;
+		}
+		
 		switch (dyn->d_tag) {
 			case DT_STRTAB:
 				fStrings = (const char*)FromVirt(dyn->d_un.d_ptr);
+				printf("[ELF] DT_STRTAB at %p\n", fStrings);
 				break;
 			case DT_SYMTAB:
 				fSymbols = (typename Class::Sym*)FromVirt(dyn->d_un.d_ptr);
+				printf("[ELF] DT_SYMTAB at %p\n", fSymbols);
 				break;
 			case DT_HASH:
 				fHash = (uint32*)FromVirt(dyn->d_un.d_ptr);
+				if (fHash) {
+					printf("[ELF] DT_HASH at %p (nbucket=%u, nchain=%u)\n", fHash, fHash[0], fHash[1]);
+				}
 				break;
 			case DT_NEEDED:
-				// Library dependency - could load here if we have DynamicLinker
-				if (fStrings) {
-					printf("[ELF] Dependency: %s\n", fStrings + dyn->d_un.d_val);
+				{
+					const char *depName = fStrings ? fStrings + dyn->d_un.d_val : "???";
+					printf("[ELF] Dependency: %s\n", depName);
 				}
+				break;
+			case DT_REL:
+			case DT_RELA:
+			case DT_RELENT:
+			case DT_RELAENT:
+			case DT_PLTREL:
+				printf("[ELF] Relocation tag: %#lx\n", (unsigned long)dyn->d_tag);
 				break;
 		}
 	}
 
+	printf("[ELF] Processed %d dynamic entries\n", dynCnt);
 	fIsDynamic = true;
 }
 
@@ -316,17 +360,30 @@ void *ElfImageImpl<Class>::GetImageBase()
 template<typename Class>
 bool ElfImageImpl<Class>::FindSymbol(const char *name, void **adr, size_t *size)
 {
-	if (fSymbols == NULL || fHash == NULL) return false;
+	if (fSymbols == NULL || fHash == NULL || fStrings == NULL) {
+		printf("[ELF] Symbol lookup failed: symbols=%p hash=%p strings=%p\n", 
+		       fSymbols, fHash, fStrings);
+		return false;
+	}
+	
 	uint32 symCnt = fHash[1];
+	printf("[ELF] Searching for symbol '%s' in %u symbols\n", name, symCnt);
+	
 	for (uint32 i = 0; i < symCnt; i++) {
 		typename Class::Sym &sym = fSymbols[i];
 		if (sym.st_shndx == SHN_UNDEF) continue;
+		
 		const char *symName = fStrings + sym.st_name;
 		if (strcmp(name, symName) != 0) continue;
+		
 		if (adr != NULL) *adr = FromVirt(sym.st_value);
 		if (size != NULL) *size = sym.st_size;
+		
+		printf("[ELF] Found symbol '%s' at %p (size=%zu)\n", name, *adr, *size);
 		return true;
 	}
+	
+	printf("[ELF] Symbol '%s' not found\n", name);
 	return false;
 }
 
