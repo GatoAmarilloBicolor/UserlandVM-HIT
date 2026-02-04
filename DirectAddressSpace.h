@@ -15,6 +15,7 @@
 #include <sys/types.h>
 
 #include "AddressSpace.h"
+#include <OS.h>
 #include <SupportDefs.h>
 
 // Implementación de AddressSpace que usa un área de memoria contigua
@@ -38,7 +39,6 @@ public:
   addr_t GuestBaseAddress() const { return fGuestBaseAddress; }
 
   // Virtual address mapping: Maps guest virtual addresses to offsets
-  // Standard x86-32 binaries use 0x08048000 as code base
   virtual status_t RegisterMapping(uint32_t guest_vaddr, uint32_t guest_offset,
                                    size_t size) override;
   virtual uint32_t TranslateAddress(uint32_t guest_vaddr) const override;
@@ -68,3 +68,5 @@ private:
   AddressMap fMappings[MAX_MAPPINGS];
   int fMappingCount;
 };
+
+#endif // _DIRECT_ADDRESS_SPACE_H
