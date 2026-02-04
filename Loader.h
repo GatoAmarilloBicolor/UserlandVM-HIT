@@ -1,6 +1,7 @@
 #pragma once
 
 #include <elf.h>
+#include <cstdint>
 #include <AutoDeleter.h>
 #include <AutoDeleterOS.h>
 #include <AutoDeleterPosix.h>
@@ -61,7 +62,7 @@ private:
 	AreaDeleter fArea;
 	void *fBase{};
 	Address fSize{};
-	PtrDiff fDelta{};
+	intptr_t fDelta{};  // Use intptr_t to hold full 64-bit offsets
 
 	void *fEntry{};
 	typename Class::Dyn *fDynamic{};
@@ -70,8 +71,8 @@ private:
 	const char *fStrings{};
 	bool fIsDynamic{false};
 
-	void *FromVirt(Address virtAdr) {return (void*)(virtAdr + fDelta);}
-	Address ToVirt(void *adr) {return ((Address)(addr_t)adr - fDelta);}
+	void *FromVirt(Address virtAdr) {return (void*)((intptr_t)virtAdr + fDelta);}
+	Address ToVirt(void *adr) {return (Address)((intptr_t)adr - fDelta);}
 
 	void LoadHeaders();
 	void LoadSegments();

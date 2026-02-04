@@ -2,6 +2,8 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <cstring>
+#include <cinttypes>
 
 #include <algorithm>
 #include <type_traits>
@@ -87,8 +89,8 @@ void ElfImageImpl<Class>::LoadSegments()
 		abort();
 	}
 	
-	fDelta = (Address)(addr_t)fBase - minAdr;
-	printf("[ELF] Image base: %p, delta: %#" B_PRIx64 "\n", fBase, fDelta);
+	fDelta = (intptr_t)fBase - (intptr_t)minAdr;
+	printf("[ELF] Image base: %p, delta: %#" PRIxPTR "\n", fBase, (uintptr_t)fDelta);
 	fEntry = FromVirt(fHeader.e_entry);
 	printf("[ELF] Entry point: %p\n", fEntry);
 	
@@ -103,16 +105,40 @@ void ElfImageImpl<Class>::LoadSegments()
 					   i, (uint64)phdr.p_vaddr, (uint64)phdr.p_filesz, (uint64)phdr.p_memsz, (uint64)phdr.p_offset);
 				fflush(stdout);
 				
-				fseek(fFile.Get(), phdr.p_offset, SEEK_SET);
+				// Validate addresses are within allocated range
 				void *dst = FromVirt(phdr.p_vaddr);
-				printf("[ELF] Seeking to offset %#" B_PRIx64 ", reading %#" B_PRIx64 " bytes to %p\n",
-					   (uint64)phdr.p_offset, (uint64)phdr.p_filesz, dst);
+				void *segEnd = (void*)((addr_t)dst + phdr.p_filesz);
+				void *areaEnd = (void*)((addr_t)fBase + fSize);
+				
+				printf("[ELF] Address check: dst=%p, end=%p, areaBase=%p, areaEnd=%p\n", dst, segEnd, fBase, areaEnd);
+				fflush(stdout);
+				
+				if ((addr_t)dst < (addr_t)fBase || (addr_t)segEnd > (addr_t)areaEnd) {
+					printf("[ELF] ERROR: Segment address out of bounds\n");
+					printf("[ELF]   dst=%p, end=%p\n", dst, segEnd);
+					printf("[ELF]   area=[%p, %p)\n", fBase, areaEnd);
+					abort();
+				}
+				
+				printf("[ELF] Seeking to offset %#" B_PRIx64 "\n", (uint64)phdr.p_offset);
+				fflush(stdout);
+				fseek(fFile.Get(), phdr.p_offset, SEEK_SET);
+				printf("[ELF] Reading %#" B_PRIx64 " bytes to %p\n", (uint64)phdr.p_filesz, dst);
 				fflush(stdout);
 				
 				if (!FileRead(fFile.Get(), dst, phdr.p_filesz)) {
 					printf("[ELF] ERROR: Failed to read segment data\n");
 					abort();
 				}
+				
+				// Zero-fill BSS (memsz > filesz)
+				if (phdr.p_memsz > phdr.p_filesz) {
+					void *bssStart = (void*)((addr_t)dst + phdr.p_filesz);
+					size_t bssSize = phdr.p_memsz - phdr.p_filesz;
+					printf("[ELF] Zeroing BSS: %p, size=%zu\n", bssStart, bssSize);
+					memset(bssStart, 0, bssSize);
+				}
+				
 				printf("[ELF] Segment %u loaded successfully\n", i);
 				fflush(stdout);
 				break;
