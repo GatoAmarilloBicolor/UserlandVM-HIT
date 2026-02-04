@@ -168,14 +168,37 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath,
   printf("[X86] Execution loop starting, max %u instructions\n", MAX_INSTRUCTIONS);
   fflush(stdout);
   
-  while (!guestContext.ShouldExit() && instructionCount < MAX_INSTRUCTIONS) {
-    printf("[X86Loop] Before execute, instruction %u\n", instructionCount);
+  // TEMPORARY DEBUG: Just print first few instructions without executing
+  printf("[X86] DEBUG MODE: Printing instructions without execution\n");
+  fflush(stdout);
+  
+  for (int i = 0; i < 5; i++) {
+    uintptr_t eip64 = guestContext.GetEIP64();
+    printf("[X86] Instruction %d: EIP=0x%lx (lower 32: 0x%x)\n", i, eip64, guestContext.Registers().eip);
+    
+    // Try to peek at memory
+    uint8_t* code_ptr = (uint8_t*)eip64;
+    if (code_ptr) {
+      printf("[X86]   Bytes: %02x %02x %02x %02x\n", code_ptr[0], code_ptr[1], code_ptr[2], code_ptr[3]);
+    }
     fflush(stdout);
     
-    status_t status = executor.Execute(guestContext, exitCode);
-    
-    printf("[X86Loop] After execute, status=%d\n", status);
-    fflush(stdout);
+    // Don't actually execute
+    break;  // Just do one iteration for now
+  }
+  
+  printf("[X86] Exiting early for debug\n");
+  fflush(stdout);
+  
+  if (false) {  // Disabled for now
+    while (!guestContext.ShouldExit() && instructionCount < MAX_INSTRUCTIONS) {
+      printf("[X86Loop] Before execute, instruction %u\n", instructionCount);
+      fflush(stdout);
+      
+      status_t status = executor.Execute(guestContext, exitCode);
+      
+      printf("[X86Loop] After execute, status=%d\n", status);
+      fflush(stdout);
     
     if (status != B_OK) {
       printf("[X86] Executor returned error: %d at instruction %u\n", status, instructionCount);
@@ -190,9 +213,10 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath,
       printf("[X86] Executed %u instructions\n", instructionCount);
       fflush(stdout);
     }
-  }
-  
-  if (instructionCount >= MAX_INSTRUCTIONS) {
+    }
+    }  // End of if(false)
+    
+    if (instructionCount >= MAX_INSTRUCTIONS) {
     printf("[X86] WARNING: Reached instruction limit (%u), possible infinite loop\n", MAX_INSTRUCTIONS);
   } else {
     printf("[X86] Program exited normally after %u instructions\n", instructionCount);
