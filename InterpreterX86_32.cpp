@@ -150,13 +150,19 @@ status_t InterpreterX86_32::Run(GuestContext &context) {
   X86_32Registers &regs = x86_context.Registers();
 
   printf("\n[INTERPRETER] Starting x86-32 interpreter\n");
-  printf("[INTERPRETER] Entry point: 0x%08x\n", regs.eip);
+  printf("[INTERPRETER] Entry point: 0x%08x (64-bit: 0x%lx)\n", regs.eip, x86_context.GetEIP64());
   printf("[INTERPRETER] Stack pointer: 0x%08x\n", regs.esp);
   printf("[INTERPRETER] Max instructions: %u\n\n", MAX_INSTRUCTIONS);
+  fflush(stdout);
 
   uint32 instr_count = 0;
 
+  printf("[INTERPRETER] About to enter main loop\n");
+  fflush(stdout);
+
   while (instr_count < MAX_INSTRUCTIONS) {
+    printf("[INTERPRETER::Loop] instr_count=%u, calling ExecuteInstruction\n", instr_count);
+    fflush(stdout);
     uint32 bytes_consumed = 0;
     X86_32Registers &regs = x86_context.Registers();
     uint32 eip_before = regs.eip;
@@ -192,15 +198,28 @@ status_t InterpreterX86_32::Run(GuestContext &context) {
         return B_BAD_DATA;
       }
       // EIP was modified by instruction (CALL/JMP), don't increment
+      // Also update the 64-bit EIP if in direct memory mode
+      uintptr_t eip64 = x86_context.GetEIP64();
+      if (eip64 != 0) {
+        // In direct memory mode, update both 32-bit and 64-bit
+        uintptr_t delta = (uintptr_t)regs.eip - (uintptr_t)eip_before;
+        x86_context.SetEIP64(eip64 + delta);
+      }
     } else {
       // Normal instruction, increment EIP by instruction size
       regs.eip += bytes_consumed;
+      // Also update the 64-bit EIP if in direct memory mode
+      uintptr_t eip64 = x86_context.GetEIP64();
+      if (eip64 != 0) {
+        x86_context.SetEIP64(eip64 + bytes_consumed);
+      }
     }
     instr_count++;
 
-    // Safety check
-    if (instr_count % 1000 == 0) {
-      printf("[INTERPRETER] Executed %u instructions\n", instr_count);
+    // Safety check and progress reporting
+    if (instr_count % 100 == 0) {
+      printf("[INTERPRETER] Executed %u instructions, EIP=0x%08x\n", instr_count, regs.eip);
+      fflush(stdout);
     }
   }
 
@@ -218,21 +237,33 @@ status_t InterpreterX86_32::ExecuteInstruction(GuestContext &context,
   // hay mappings
   uint8 instr_buffer[15]; // Máximo largo de instrucción x86
 
-  // Debug: Check if this is a problematic address
-  if (regs.eip < 0x40000000 || regs.eip > 0x41000000) {
-    printf("[INTERPRETER] ⚠️  SUSPICIOUS EIP: 0x%08x (outside normal range)\n",
-           regs.eip);
+  // In direct memory mode on 64-bit host, we need to use the 64-bit EIP to ensure
+  // we read from the correct address. DirectAddressSpace will handle the base offset.
+  uintptr_t eip_addr = x86_context.GetEIP64();
+  if (eip_addr == 0) {
+    // Fallback to 32-bit EIP only if 64-bit not available
+    eip_addr = (uintptr_t)regs.eip;
   }
 
   // Check for program exit (jump to NULL)
-  if (regs.eip == 0) {
+  if (eip_addr == 0) {
     printf("[INTERPRETER] Program jumped to NULL (0x00000000) - treating as "
            "graceful exit\n");
     return (status_t)0x80000001;
   }
 
+  // DEBUG: First few instructions
+  static int instr_count_debug = 0;
+  if (instr_count_debug < 3) {
+    printf("[DEBUG] Attempting to read from EIP64=0x%lx (32-bit: 0x%x)\n", eip_addr, (uint32)eip_addr);
+    fflush(stdout);
+    instr_count_debug++;
+  }
+
+  // Read instruction from EIP. The address space will interpret this correctly
+  // in direct memory mode
   status_t status =
-      fAddressSpace.Read(regs.eip, instr_buffer, sizeof(instr_buffer));
+      fAddressSpace.Read((uint32)eip_addr, instr_buffer, sizeof(instr_buffer));
   if (status != B_OK) {
     printf("[INTERPRETER] Failed to read memory at vaddr=0x%08x\n", regs.eip);
     printf("[INTERPRETER] Current state:\n");

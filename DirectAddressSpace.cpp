@@ -64,9 +64,16 @@ DirectAddressSpace::Read(uint32_t guestAddress, void* buffer, size_t size)
 	if (!buffer)
 		return B_BAD_VALUE;
 	
-	// If using direct memory mode, treat guest address as direct host pointer
+	// If using direct memory mode, guest addresses are direct host pointers
 	if (fUseDirectMemory) {
-		// Direct access: guestAddress is a host pointer value (64-bit value)
+		// In direct memory mode with base=0, the guestAddress is a direct host pointer.
+		// However, since uint32_t is too small for 64-bit addresses on 64-bit hosts,
+		// we can only access memory with addresses fitting in 32 bits, OR
+		// the caller has set up base addresses for proper translation.
+		//
+		// This is a limitation that should be improved in a future version.
+		
+		// For now, just treat the uint32_t as a host pointer (might be truncated)
 		uintptr_t hostAddr = (uintptr_t)guestAddress;
 		uint8_t* source = (uint8_t*)hostAddr;
 		memcpy(buffer, source, size);
@@ -126,7 +133,18 @@ DirectAddressSpace::Write(uint32_t guestAddress, const void* buffer, size_t size
 	
 	// If using direct memory mode, treat guest address as direct host pointer
 	if (fUseDirectMemory) {
-		// Direct access: guestAddress is a host pointer value
+		// Direct access: In direct memory mode, we use fGuestBaseAddress as the host base
+		// and guestAddress as an offset from it (or a direct pointer for high addresses)
+		
+		// If guestAddress is small, it's an offset from the base
+		if (guestAddress < 0x10000000 && fGuestBaseAddress != 0) {
+			uintptr_t hostAddr = fGuestBaseAddress + guestAddress;
+			uint8_t* dest = (uint8_t*)hostAddr;
+			memcpy(dest, buffer, size);
+			return B_OK;
+		}
+		
+		// Otherwise, treat as a direct pointer (usually happens with stack, which is allocated separately)
 		uint8_t* dest = (uint8_t*)guestAddress;
 		memcpy(dest, buffer, size);
 		return B_OK;

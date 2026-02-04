@@ -19,16 +19,17 @@ cpp = meson.get_compiler('cpp')
 # )
 
 
-addon_temu = shared_library('temu',
-	'VirtualCpuRiscVTemu.cpp',	
-	cpp_args: temu_defines + ['-DMAX_XLEN=64'],
-	link_with: [temu],
-	gnu_symbol_visibility: 'hidden',
-	install: true
-)
-dep_addon_temu = declare_dependency(
-	link_with: addon_temu
-)
+# addon_temu disabled for now - focus on x86-32 first
+# addon_temu = shared_library('temu',
+# 	'VirtualCpuRiscVTemu.cpp',	
+# 	cpp_args: temu_defines + ['-DMAX_XLEN=64'],
+# 	link_with: [temu],
+# 	gnu_symbol_visibility: 'hidden',
+# 	install: true
+# )
+# dep_addon_temu = declare_dependency(
+# 	link_with: addon_temu
+# )
 
 # RISC-V components disabled for now - focus on x86-32
 # addon_rvvm = shared_library('rvvm',
@@ -80,6 +81,12 @@ executable(
 	'Main.cpp',
 	include_directories: [
 		'external/haiku/headers',
+		'/boot/system/develop/headers',
+		'/boot/system/develop/headers/os',
+		'/boot/system/develop/headers/private',
+		'/boot/system/develop/headers/private/shared',
+		'/boot/system/develop/headers/private/system',
+		'/boot/system/develop/headers/private/system/arch/x86',
 	],
 	gnu_symbol_visibility: 'hidden',
 	install: true

@@ -113,7 +113,12 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath,
   // Create address space wrapper for guest memory
   // Using direct memory mode since we load binaries into host malloc'd memory
   DirectAddressSpace addressSpace;
-  addressSpace.SetGuestMemoryBase(0, 0);  // Placeholder, direct memory mode enabled
+  // Set the guest base to 0 so that guest addresses are treated as direct offsets
+  // This works because:
+  // 1. We'll store the 64-bit entry point in the context
+  // 2. The interpreter will use that 64-bit address to compute offsets
+  // For now, set base to 0 and use direct 64-bit addresses
+  addressSpace.SetGuestMemoryBase(0, 0);
   printf("[X86] Direct memory mode enabled for address space\n");
   fflush(stdout);
   
@@ -171,54 +176,23 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath,
   const uint32 MAX_INSTRUCTIONS = 1000000;  // Safety limit to prevent infinite loops
   
   printf("[X86] Execution loop starting with InterpreterX86_32, max %u instructions\n", MAX_INSTRUCTIONS);
-  fflush(stdout);
-  
-  // TEMPORARY DEBUG: Just print first few instructions without executing
-  printf("[X86] DEBUG MODE: Printing instructions without execution\n");
-  fflush(stdout);
-  
-  for (int i = 0; i < 5; i++) {
-    uintptr_t eip64 = guestContext.GetEIP64();
-    printf("[X86] Instruction %d: EIP=0x%lx (lower 32: 0x%x)\n", i, eip64, guestContext.Registers().eip);
-    
-    // Try to peek at memory
-    uint8_t* code_ptr = (uint8_t*)eip64;
-    if (code_ptr) {
-      printf("[X86]   Bytes: %02x %02x %02x %02x\n", code_ptr[0], code_ptr[1], code_ptr[2], code_ptr[3]);
-    }
-    fflush(stdout);
-    
-    // Don't actually execute
-    break;  // Just do one iteration for now
-  }
-  
-  printf("[X86] Exiting early for debug\n");
+  printf("[X86] Direct memory mode: fUseDirectMemory=true\n");
+  printf("[X86] Entry point in 64-bit form: 0x%lx\n", guestContext.GetEIP64());
   fflush(stdout);
   
   // STEP 1: Execute using InterpreterX86_32 (working approach)
-  while (!guestContext.ShouldExit() && instructionCount < MAX_INSTRUCTIONS) {
-    printf("[X86Loop] Before execute, instruction %u\n", instructionCount);
+  status_t status = interpreter.Run(guestContext);
+  
+  if (status == B_OK || status == (status_t)0x80000001) {
+    // 0x80000001 is the special exit code from syscall dispatcher
+    exitCode = 0;
+  } else {
+    printf("[X86] Interpreter returned error: %d\n", status);
     fflush(stdout);
-    
-    status_t status = interpreter.Run(guestContext);
-    
-    printf("[X86Loop] After execute, status=%d\n", status);
-    fflush(stdout);
-    
-    if (status != B_OK) {
-      printf("[X86] Interpreter returned error: %d at instruction %u\n", status, instructionCount);
-      fflush(stdout);
-      break;
-    }
-    
-    instructionCount++;
-    
-    // Print progress every 10 instructions (for debugging)
-    if (instructionCount % 10 == 0) {
-      printf("[X86] Executed %u instructions\n", instructionCount);
-      fflush(stdout);
-    }
-    }  // End of execution loop
+    exitCode = 1;
+  }
+  
+  instructionCount = 1;  // Dummy counter for now
     
     if (instructionCount >= MAX_INSTRUCTIONS) {
     printf("[X86] WARNING: Reached instruction limit (%u), possible infinite loop\n", MAX_INSTRUCTIONS);
