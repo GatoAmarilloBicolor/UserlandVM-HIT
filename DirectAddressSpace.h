@@ -13,6 +13,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/types.h>
+#include <OS.h>
 
 #include "AddressSpace.h"
 #include <SupportDefs.h>
@@ -68,3 +69,5 @@ private:
   AddressMap fMappings[MAX_MAPPINGS];
   int fMappingCount;
 };
+
+#endif

@@ -462,34 +462,35 @@ template <typename Class> void *ElfImageImpl<Class>::GetImageBase() {
 template <typename Class>
 bool ElfImageImpl<Class>::FindSymbol(const char *name, void **adr,
                                      size_t *size) {
-  printf("[ELF] Symbol lookup failed: symbols=%p hash=%p strings=%p\n",
-         (void *)fSymbols, (void *)fHash, (void *)fStrings);
+  if (fSymbols == NULL || fHash == NULL || fStrings == NULL) {
+    printf("[ELF] Symbol lookup failed: symbols=%p hash=%p strings=%p\n",
+           (void *)fSymbols, (void *)fHash, (void *)fStrings);
+    return false;
+  }
+
+  uint32 symCnt = fHash[1];
+  printf("[ELF] Searching for symbol '%s' in %u symbols\n", name, symCnt);
+
+  for (uint32 i = 0; i < symCnt; i++) {
+    typename Class::Sym &sym = fSymbols[i];
+    if (sym.st_shndx == SHN_UNDEF)
+      continue;
+
+    const char *symName = fStrings + sym.st_name;
+    if (strcmp(name, symName) != 0)
+      continue;
+
+    if (adr != NULL)
+      *adr = FromVirt(sym.st_value);
+    if (size != NULL)
+      *size = sym.st_size;
+
+    printf("[ELF] Found symbol '%s' at %p (size=%zu)\n", name, *adr, *size);
+    return true;
+  }
+
+  printf("[ELF] Symbol '%s' not found\n", name);
   return false;
-}
-
-uint32 symCnt = fHash[1];
-printf("[ELF] Searching for symbol '%s' in %u symbols\n", name, symCnt);
-
-for (uint32 i = 0; i < symCnt; i++) {
-  typename Class::Sym &sym = fSymbols[i];
-  if (sym.st_shndx == SHN_UNDEF)
-    continue;
-
-  const char *symName = fStrings + sym.st_name;
-  if (strcmp(name, symName) != 0)
-    continue;
-
-  if (adr != NULL)
-    *adr = FromVirt(sym.st_value);
-  if (size != NULL)
-    *size = sym.st_size;
-
-  printf("[ELF] Found symbol '%s' at %p (size=%zu)\n", name, *adr, *size);
-  return true;
-}
-
-printf("[ELF] Symbol '%s' not found\n", name);
-return false;
 }
 
 template class ElfImageImpl<Elf32Class>;
