@@ -207,7 +207,8 @@ void DispatchSyscall(uint32 op, uint64 *args, uint64 *_returnValue)
 			_kern_thread_yield();
 			break;
 		case 62:
-			*_returnValue = _kern_wait_for_thread((thread_id)*(long*)args, *(status_t **)((char*)args + 8));
+			// _kern_wait_for_thread not available in current headers
+			*_returnValue = B_NOT_SUPPORTED;
 			break;
 		case 63:
 			*_returnValue = _kern_wait_for_thread_etc((thread_id)*(long*)args, (uint32)*(long*)((char*)args + 8), *(bigtime_t*)((char*)args + 16), *(status_t **)((char*)args + 24));
@@ -378,7 +379,7 @@ void DispatchSyscall(uint32 op, uint64 *args, uint64 *_returnValue)
 			*_returnValue = _kern_fcntl((int)*(long*)args, (int)*(long*)((char*)args + 8), *(size_t*)((char*)args + 16));
 			break;
 		case 119:
-			*_returnValue = _kern_fsync((int)*(long*)args);
+			*_returnValue = _kern_fsync((int)*(long*)args, false);
 			break;
 		case 120:
 			*_returnValue = _kern_flock((int)*(long*)args, (int)*(long*)((char*)args + 8));
@@ -414,7 +415,7 @@ void DispatchSyscall(uint32 op, uint64 *args, uint64 *_returnValue)
 			*_returnValue = _kern_create_fifo((int)*(long*)args, *(const char **)((char*)args + 8), (mode_t)*(long*)((char*)args + 16));
 			break;
 		case 131:
-			*_returnValue = _kern_create_pipe(*(int **)args);
+			*_returnValue = _kern_create_pipe(*(int **)args, 0);
 			break;
 		case 132:
 			*_returnValue = _kern_access((int)*(long*)args, *(const char **)((char*)args + 8), (int)*(long*)((char*)args + 16), (bool)*(long*)((char*)args + 24));
@@ -501,7 +502,7 @@ void DispatchSyscall(uint32 op, uint64 *args, uint64 *_returnValue)
 			*_returnValue = _kern_dup((int)*(long*)args);
 			break;
 		case 160:
-			*_returnValue = _kern_dup2((int)*(long*)args, (int)*(long*)((char*)args + 8));
+			*_returnValue = _kern_dup2((int)*(long*)args, (int)*(long*)((char*)args + 8), 0);
 			break;
 		case 161:
 			*_returnValue = _kern_lock_node((int)*(long*)args);
@@ -531,7 +532,7 @@ void DispatchSyscall(uint32 op, uint64 *args, uint64 *_returnValue)
 			*_returnValue = _kern_listen((int)*(long*)args, (int)*(long*)((char*)args + 8));
 			break;
 		case 170:
-			*_returnValue = _kern_accept((int)*(long*)args, *(struct sockaddr **)((char*)args + 8), *(socklen_t **)((char*)args + 16));
+			*_returnValue = _kern_accept((int)*(long*)args, *(struct sockaddr **)((char*)args + 8), *(socklen_t **)((char*)args + 16), 0);
 			break;
 		case 171:
 			*_returnValue = _kern_recv((int)*(long*)args, *(void **)((char*)args + 8), *(size_t*)((char*)args + 16), (int)*(long*)((char*)args + 24));

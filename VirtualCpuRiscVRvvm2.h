@@ -5,7 +5,7 @@
 #include <pthread.h>
 
 extern "C" {
-#include <rvvmlib.h>
+#include "rvvm/rvvm.h"
 }
 
 class VirtualCpuRiscVRvvm2: public VirtualCpuRiscV {

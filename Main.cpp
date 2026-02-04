@@ -53,16 +53,23 @@ area_id	vm32_create_area(const char *name, void **address, uint32 addressSpec, s
 	if (addressSpec != B_ANY_ADDRESS) {
 		return _kern_create_area(name, address, addressSpec, size, lock, protection);
 	}
-	// crazy random allocator :D
+	// Try to allocate with B_ANY_ADDRESS first (more reliable)
 	size = (size + (B_PAGE_SIZE - 1)) / B_PAGE_SIZE * B_PAGE_SIZE;
-	for (int i = 0; ; i++) {
+	area_id area = _kern_create_area(name, address, B_ANY_ADDRESS, size, lock, protection);
+	if (area >= B_OK) {
+		return area;
+	}
+	// Fallback: crazy random allocator
+	for (int i = 0; i < 100; i++) {
 		void *address32 = (void*)(rand() % (0xffffffff - size + 1));
-		area_id area = _kern_create_area(name, &address32, B_EXACT_ADDRESS, size, lock, protection);
-		if (area >= B_OK || !(i < 100)) {
+		area = _kern_create_area(name, &address32, B_EXACT_ADDRESS, size, lock, protection);
+		if (area >= B_OK) {
 			*address = address32;
 			return area;
 		}
 	}
+	// Final fallback: just use any address
+	return _kern_create_area(name, address, B_ANY_ADDRESS, size, lock, protection);
 }
 
 void *GetImageBase(const char *name)

@@ -9,6 +9,11 @@
 #define DT_CODE_EXECUTE_ONLY 0x8
 #define DT_CODE_DATA_SEGMENT 1
 #include <private/kernel/arch/x86/64/descriptors.h>
+
+// Selector definitions
+#define USER32_CODE_SELECTOR 0x1b
+#define USER_CODE_SELECTOR 0x2b
+#define USER_DATA_SELECTOR 0x23
 #include <private/system/arch/x86/arch_thread_defs.h>
 #include <private/system/syscalls.h>
 

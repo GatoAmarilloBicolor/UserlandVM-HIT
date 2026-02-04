@@ -6,10 +6,12 @@ project(
 
 cpp = meson.get_compiler('cpp')
 
-dep_rvvm = dependency('rvvm')
-
 subdir('rvvm')
 subdir('temu')
+
+dep_rvvm = declare_dependency(
+	link_with: rvvm
+)
 
 
 addon_temu = shared_library('temu',
@@ -34,16 +36,17 @@ dep_addon_rvvm = declare_dependency(
 	link_with: addon_rvvm
 )
 
-addon_rvvm2 = shared_library('rvvm2',
-	'VirtualCpuRiscVRvvm2.cpp',
-	'Referenceable.cpp',
-	dependencies: [dep_rvvm],
-	gnu_symbol_visibility: 'hidden',
-	install: true
-)
-dep_addon_rvvm2 = declare_dependency(
-	link_with: addon_rvvm2
-)
+# addon_rvvm2 disabled - API mismatch with current RVVM version
+# addon_rvvm2 = shared_library('rvvm2',
+# 	'VirtualCpuRiscVRvvm2.cpp',
+# 	'Referenceable.cpp',
+# 	dependencies: [dep_rvvm],
+# 	gnu_symbol_visibility: 'hidden',
+# 	install: true
+# )
+# dep_addon_rvvm2 = declare_dependency(
+# 	link_with: addon_rvvm2
+# )
 
 
 executable(
