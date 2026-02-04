@@ -8,6 +8,11 @@
 #include <SupportDefs.h>
 #include <commpage_defs.h>
 
+// x86-32 commpage entry for syscall stub
+#ifndef COMMPAGE_ENTRY_X86_SYSCALL
+#define COMMPAGE_ENTRY_X86_SYSCALL 0x40
+#endif
+
 class CommpageManager {
 public:
   static status_t Setupx86Commpage(AddressSpace &addressSpace,

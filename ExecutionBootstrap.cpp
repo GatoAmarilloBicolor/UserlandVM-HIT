@@ -104,33 +104,7 @@ bool ExecutionBootstrap::BuildX86Stack(ProgramContext &ctx, char **argv,
   while (env && env[envc])
     envc++;
 
-<<<<<<< Updated upstream
-	// Setup execution context
-	ProgramContext ctx;
-	ctx.image = image.Get();
-	ctx.entryPoint = (uint32)(addr_t)image->GetEntry();
-	ctx.stackSize = DEFAULT_STACK_SIZE;
-	ctx.linker = new DynamicLinker();
-	
-	// Load dynamic dependencies
-	if (image->IsDynamic()) {
-		printf("[X86] Loading dynamic dependencies\n");
-		fflush(stdout);
-		if (!LoadDependencies(ctx, image.Get())) {
-			fprintf(stderr, "[X86] Failed to load dependencies\n");
-			return 1;
-		}
-	}
-	
-	// Allocate stack for guest program
-	ctx.stackBase = AllocateStack(ctx.stackSize);
-	if (!ctx.stackBase) {
-		fprintf(stderr, "[X86] Failed to allocate stack\n");
-		return 1;
-	}
-=======
   printf("[X86] argc=%d, envc=%d\n", argc, envc);
->>>>>>> Stashed changes
 
   // Stack layout (x86):
   // [esp + 0]  = argc
