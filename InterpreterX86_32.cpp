@@ -1,7 +1,6 @@
-/*
- * Copyright 2025, Haiku Imposible Team.
- * All rights reserved. Distributed under the terms of the MIT License.
- */
+#ifdef __linux__
+#include <features.h>
+#endif
 
 #include <stdio.h>
 #include <string.h>
