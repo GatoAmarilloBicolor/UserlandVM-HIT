@@ -1,4 +1,5 @@
 #include "ExecutionBootstrap.h"
+#include "VirtualCpuX86Native.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -55,13 +56,28 @@ int ExecutionBootstrap::ExecuteProgram(const char *programPath, char **argv, cha
 		return 1;
 	}
 
-	// Now would jump to VirtualCpuX86Native to execute
 	printf("[X86] Ready to execute x86 32-bit program\n");
 	printf("[X86] Entry point: %#x\n", ctx.entryPoint);
 	printf("[X86] Stack pointer: %#x\n", ctx.stackPointer);
+	printf("[X86] ===== Program Output =====\n");
 	fflush(stdout);
 
-	// TODO: Jump to CPU emulator here
+	// Create VirtualCpuX86Native and execute
+	VirtualCpuX86Native cpu;
+	
+	// Set initial registers
+	cpu.Ip() = ctx.entryPoint;
+	cpu.Regs()[4] = ctx.stackPointer;  // ESP = stack pointer
+	
+	printf("[X86] CPU initialized, jumping to entry point\n");
+	fflush(stdout);
+	
+	// Run the program
+	cpu.Run();
+	
+	printf("[X86] ===== Program Terminated =====\n");
+	fflush(stdout);
+	
 	return 0;
 }
 
@@ -78,13 +94,42 @@ bool ExecutionBootstrap::BuildX86Stack(ProgramContext &ctx, char **argv, char **
 {
 	printf("[X86] Building stack with %zu bytes available\n", ctx.stackSize);
 
-	// TODO: Build proper stack frame with:
-	// - argc/argv
-	// - environment variables
-	// - auxiliary information
-	// - return address
+	// Build stack frame at the top of the stack going downward
+	uint32 sp = ctx.stackPointer;
+	uint8 *stack_base = (uint8 *)ctx.stackBase;
 	
-	printf("[X86] Stack frame built\n");
+	// Count arguments and environment variables
+	int argc = 0;
+	while (argv && argv[argc]) argc++;
+	
+	int envc = 0;
+	while (env && env[envc]) envc++;
+	
+	printf("[X86] argc=%d, envc=%d\n", argc, envc);
+	
+	// Stack layout (x86):
+	// [esp + 0]  = argc
+	// [esp + 4]  = argv[0]
+	// [esp + 8]  = argv[1]
+	// ...
+	// [esp + 4*(argc+1)] = NULL
+	// [esp + 4*(argc+2)] = env[0]
+	// ...
+	
+	// For now, just set up argc at stack pointer
+	// This is simplified - a full implementation would copy strings
+	
+	// Write argc
+	if (sp >= 4) {
+		sp -= 4;
+		*(uint32 *)(stack_base + (sp - (uint32)(addr_t)stack_base)) = argc;
+		printf("[X86] Wrote argc=%d at %#x\n", argc, sp);
+	}
+	
+	// Update stack pointer
+	ctx.stackPointer = sp;
+	
+	printf("[X86] Stack frame built, new sp=%#x\n", ctx.stackPointer);
 	return true;
 }
 
