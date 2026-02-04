@@ -45,6 +45,8 @@ public:
 	virtual void *GetImageBase() = 0;
 	virtual void *GetEntry() = 0;
 	virtual bool FindSymbol(const char *name, void **adr, size_t *size) = 0;
+	virtual const char *GetPath() = 0;
+	virtual bool IsDynamic() = 0;
 };
 
 template <typename Class>
@@ -66,6 +68,7 @@ private:
 	typename Class::Sym *fSymbols{};
 	uint32 *fHash{};
 	const char *fStrings{};
+	bool fIsDynamic{false};
 
 	void *FromVirt(Address virtAdr) {return (void*)(virtAdr + fDelta);}
 	Address ToVirt(void *adr) {return ((Address)(addr_t)adr - fDelta);}
@@ -74,6 +77,7 @@ private:
 	void LoadSegments();
 	void Relocate();
 	void Register();
+	void LoadDynamic();
 
 	template<typename Reloc>
 	void DoRelocate(Reloc *reloc, Address relocSize);
@@ -87,4 +91,6 @@ public:
 	void *GetImageBase() override;
 	void *GetEntry() override {return fEntry;}
 	bool FindSymbol(const char *name, void **adr, size_t *size) override;
+	const char *GetPath() override {return fPath.Get();}
+	bool IsDynamic() override {return fIsDynamic;}
 };

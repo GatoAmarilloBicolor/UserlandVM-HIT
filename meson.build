@@ -53,6 +53,7 @@ executable(
 	'UserlandVM',
 	'Loader.cpp',
 	'Syscalls.cpp',
+	'DynamicLinker.cpp',
 	'VirtualCpuX86Native.cpp',
 	'VirtualCpuX86NativeCode.S',
 	'VirtualCpuX86Test.cpp',

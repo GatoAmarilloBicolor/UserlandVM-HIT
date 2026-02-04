@@ -1,6 +1,8 @@
 #include "Syscalls.h"
 #include <private/system/syscalls.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <cstdio>
 
 thread_id vm_spawn_thread(struct thread_creation_attributes* attributes);
 void vm_exit_thread(status_t returnValue);
@@ -878,6 +880,50 @@ void DispatchSyscall(uint32 op, uint64 *args, uint64 *_returnValue)
 			break;
 		case 285:
 			*_returnValue = _kern_stop_watching_disks((port_id)*(long*)args, (int32)*(long*)((char*)args + 8));
+			break;
+		
+		// Additional syscalls for emulator support
+		case 300:
+			// write(int fd, const void *buf, size_t count)
+			{
+				int fd = (int)*(long*)args;
+				const void *buf = *(const void **)((char*)args + 8);
+				size_t count = *(size_t*)((char*)args + 16);
+				
+				if (fd == 1 || fd == 2) {
+					// stdout or stderr
+					ssize_t ret = fwrite(buf, 1, count, fd == 1 ? stdout : stderr);
+					fflush(fd == 1 ? stdout : stderr);
+					*_returnValue = ret;
+				} else {
+					// Try real syscall
+					*_returnValue = write(fd, buf, count);
+				}
+			}
+			break;
+		case 301:
+			// read(int fd, void *buf, size_t count)
+			{
+				int fd = (int)*(long*)args;
+				void *buf = *(void **)((char*)args + 8);
+				size_t count = *(size_t*)((char*)args + 16);
+				
+				if (fd == 0) {
+					// stdin
+					ssize_t ret = fread(buf, 1, count, stdin);
+					*_returnValue = ret;
+				} else {
+					// Try real syscall
+					*_returnValue = read(fd, buf, count);
+				}
+			}
+			break;
+		case 302:
+			// exit(int status) - terminate process
+			{
+				int status = (int)*(long*)args;
+				exit(status);
+			}
 			break;
 	}
 }

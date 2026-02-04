@@ -248,10 +248,40 @@ void ElfImageImpl<Class>::Register()
 }
 
 template<typename Class>
+void ElfImageImpl<Class>::LoadDynamic()
+{
+	if (!fDynamic) return;
+
+	// Find string table and symbol table pointers
+	for (typename Class::Dyn *dyn = fDynamic; dyn->d_tag != DT_NULL; dyn++) {
+		switch (dyn->d_tag) {
+			case DT_STRTAB:
+				fStrings = (const char*)FromVirt(dyn->d_un.d_ptr);
+				break;
+			case DT_SYMTAB:
+				fSymbols = (typename Class::Sym*)FromVirt(dyn->d_un.d_ptr);
+				break;
+			case DT_HASH:
+				fHash = (uint32*)FromVirt(dyn->d_un.d_ptr);
+				break;
+			case DT_NEEDED:
+				// Library dependency - could load here if we have DynamicLinker
+				if (fStrings) {
+					printf("[ELF] Dependency: %s\n", fStrings + dyn->d_un.d_val);
+				}
+				break;
+		}
+	}
+
+	fIsDynamic = true;
+}
+
+template<typename Class>
 void ElfImageImpl<Class>::DoLoad()
 {
 	LoadHeaders();
 	LoadSegments();
+	LoadDynamic();
 	Relocate();
 	//Register();
 }
