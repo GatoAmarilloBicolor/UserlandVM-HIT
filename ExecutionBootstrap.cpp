@@ -5,7 +5,7 @@
 #include "TLSSetup.h"
 #include "VirtualCpuX86Native.h"
 #include "X86_32GuestContext.h"
-#include "OptimizedX86Executor.h"
+#include "InterpreterX86_32.h"
 #include "Haiku32SyscallDispatcher.h"
 #include <stdio.h>
 #include <stdlib.h>
