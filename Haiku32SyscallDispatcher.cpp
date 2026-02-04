@@ -233,58 +233,41 @@ status_t Haiku32SyscallDispatcher::SyscallExit(int32 code) {
 
 status_t Haiku32SyscallDispatcher::SyscallWrite(uint32 fd, const void *buffer,
                                                 uint32 size, uint32 &result) {
-  // DebugPrintf("[SYSCALL_WRITE] fd=%d, buffer=0x%08x, size=%u\n", fd,
-  //        (unsigned int)(uintptr_t)buffer, size);
-
   if (!buffer || size == 0) {
     result = 0;
     return B_OK;
   }
 
-  if (!fAddressSpace) {
-    fprintf(stderr, "[SYSCALL] ERROR: AddressSpace not set for write\n");
-    return B_BAD_VALUE;
-  }
+  // In direct memory mode, buffer is a host pointer (not a guest virtual address)
+  // We can write directly without address translation
+  const char *data = (const char *)buffer;
 
-  // buffer is a GUEST virtual address
-  uint32_t guest_vaddr = (uint32_t)(uintptr_t)buffer;
-
-  // Create a temporary buffer to read from guest
-  // For large writes, we might want to do chunks, but for now allocate small
-  // buffer
-  std::vector<char> temp_buffer(size);
-
-  status_t err =
-      fAddressSpace->ReadMemory(guest_vaddr, temp_buffer.data(), size);
-  if (err != B_OK) {
-    DebugPrintf("[SYSCALL_WRITE] Failed to read guest memory at 0x%08x\n",
-                guest_vaddr);
-    return err;
-  }
-
-  // On Linux host, we can directly write to the fd if it's standard 0,1,2
-  // For integer FDs from Haiku logic, we might need a mapping table if we open
-  // real files. For now, assuming 0,1,2 map to host 0,1,2.
+  DebugPrintf("[SYSCALL_WRITE] fd=%d, buffer=%p, size=%u\n", fd, buffer, size);
 
   ssize_t written = 0;
-  if (fd <= 2) {
-    written = write(fd, temp_buffer.data(), size);
-    // Ensure we flush for interactive output
-    if (fd == 1)
-      fflush(stdout);
-    if (fd == 2)
-      fflush(stderr);
+  if (fd == 1 || fd == 2) {
+    // Write to stdout or stderr
+    written = ::write(fd, data, size);
+    if (written > 0) {
+      printf("%.*s", (int)written, data);
+      fflush(fd == 1 ? stdout : stderr);
+    }
+    DebugPrintf("[SYSCALL_WRITE] Wrote %ld bytes to fd %d\n", written, fd);
+  } else if (fd == 0) {
+    // stdin - error
+    DebugPrintf("[SYSCALL_WRITE] Cannot write to stdin (fd=0)\n");
+    result = -1;
+    return B_FILE_ERROR;
   } else {
     // TODO: Handle file descriptors opened by _kern_open
     // For now, just print to stdout for debugging
-    DebugPrintf("[SYSCALL_WRITE] write to fd %d: '%.*s'\n", fd, size,
-                temp_buffer.data());
+    printf("[SYSCALL_WRITE] write to fd %d: '%.*s'\n", fd, (int)size, data);
     written = size; // Fake success
   }
 
   if (written < 0) {
-    result = (uint32)-1; // errno translation needed properly?
-    return errno;
+    result = (uint32)-1;
+    return B_IO_ERROR;
   }
 
   result = (uint32)written;
