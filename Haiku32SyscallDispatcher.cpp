@@ -181,57 +181,97 @@ status_t Haiku32SyscallDispatcher::SyscallExit(int32 code) {
 
 status_t Haiku32SyscallDispatcher::SyscallWrite(uint32 fd, const void *buffer,
                                                 uint32 size, uint32 &result) {
-  printf("[SYSCALL_WRITE] fd=%d, buffer=0x%08x, size=%u\n", fd,
-         (unsigned int)(uintptr_t)buffer, size);
+  // DebugPrintf("[SYSCALL_WRITE] fd=%d, buffer=0x%08x, size=%u\n", fd,
+  //        (unsigned int)(uintptr_t)buffer, size);
 
   if (!buffer || size == 0) {
-    printf("[SYSCALL_WRITE] Empty buffer or size=0, returning 0\n");
     result = 0;
     return B_OK;
   }
 
-  // Use guest virtual address to read from guest memory
   if (!fAddressSpace) {
-    printf("[SYSCALL_WRITE] ERROR: AddressSpace not set\n");
-    result = 0;
+    fprintf(stderr, "[SYSCALL] ERROR: AddressSpace not set for write\n");
     return B_BAD_VALUE;
   }
 
-  uint32_t guest_vaddr =
-      (uint32_t)(uintptr_t)buffer; // Treat as guest virtual address
+  // buffer is a GUEST virtual address
+  uint32_t guest_vaddr = (uint32_t)(uintptr_t)buffer;
 
-  printf("[SYSCALL_WRITE] Reading %u bytes from guest vaddr=0x%08x\n", size,
-         guest_vaddr);
+  // Create a temporary buffer to read from guest
+  // For large writes, we might want to do chunks, but for now allocate small
+  // buffer
+  std::vector<char> temp_buffer(size);
 
-  // Read data from guest memory (using virtual address)
-  uint8_t temp_buffer[4096]; // Temporary host buffer
-  uint32_t to_read = (size > sizeof(temp_buffer)) ? sizeof(temp_buffer) : size;
-  status_t status = fAddressSpace->Read(guest_vaddr, temp_buffer, to_read);
-  if (status != B_OK) {
-    printf("[SYSCALL_WRITE] ERROR: Failed to read guest memory at vaddr "
-           "0x%08x, status=%d\n",
-           guest_vaddr, status);
-    result = 0;
-    // Don't fail on read error - write 0 bytes
-    result = 0;
-    return B_OK;
+  status_t err =
+      fAddressSpace->ReadMemory(guest_vaddr, temp_buffer.data(), size);
+  if (err != B_OK) {
+    DebugPrintf("[SYSCALL_WRITE] Failed to read guest memory at 0x%08x\n",
+                guest_vaddr);
+    return err;
   }
 
-  printf("[SYSCALL_WRITE] Successfully read %u bytes from 0x%08x\n", to_read,
-         guest_vaddr);
+  // On Linux host, we can directly write to the fd if it's standard 0,1,2
+  // For integer FDs from Haiku logic, we might need a mapping table if we open
+  // real files. For now, assuming 0,1,2 map to host 0,1,2.
 
-  // Mapear FDs del guest a FDs del host
-  // 1 = stdout, 2 = stderr
-  int host_fd = (fd == 1) ? STDOUT_FILENO : (fd == 2) ? STDERR_FILENO : fd;
+  ssize_t written = 0;
+  if (fd <= 2) {
+    written = write(fd, temp_buffer.data(), size);
+    // Ensure we flush for interactive output
+    if (fd == 1)
+      fflush(stdout);
+    if (fd == 2)
+      fflush(stderr);
+  } else {
+    // TODO: Handle file descriptors opened by _kern_open
+    // For now, just print to stdout for debugging
+    DebugPrintf("[SYSCALL_WRITE] write to fd %d: '%.*s'\n", fd, size,
+                temp_buffer.data());
+    written = size; // Fake success
+  }
 
-  printf("[SYSCALL_WRITE] Writing to fd=%d: ", host_fd);
-  ssize_t bytes_written = write(host_fd, temp_buffer, to_read);
-  printf("\n[SYSCALL_WRITE] Wrote %ld bytes\n", bytes_written);
-  fflush(stdout);
-  fflush(stderr);
+  if (written < 0) {
+    result = (uint32)-1; // errno translation needed properly?
+    return errno;
+  }
 
-  result = (bytes_written > 0) ? bytes_written : 0;
+  result = (uint32)written;
   return B_OK;
+}
+(uint32_t)(uintptr_t)buffer; // Treat as guest virtual address
+
+printf("[SYSCALL_WRITE] Reading %u bytes from guest vaddr=0x%08x\n", size,
+       guest_vaddr);
+
+// Read data from guest memory (using virtual address)
+uint8_t temp_buffer[4096]; // Temporary host buffer
+uint32_t to_read = (size > sizeof(temp_buffer)) ? sizeof(temp_buffer) : size;
+status_t status = fAddressSpace->Read(guest_vaddr, temp_buffer, to_read);
+if (status != B_OK) {
+  printf("[SYSCALL_WRITE] ERROR: Failed to read guest memory at vaddr "
+         "0x%08x, status=%d\n",
+         guest_vaddr, status);
+  result = 0;
+  // Don't fail on read error - write 0 bytes
+  result = 0;
+  return B_OK;
+}
+
+printf("[SYSCALL_WRITE] Successfully read %u bytes from 0x%08x\n", to_read,
+       guest_vaddr);
+
+// Mapear FDs del guest a FDs del host
+// 1 = stdout, 2 = stderr
+int host_fd = (fd == 1) ? STDOUT_FILENO : (fd == 2) ? STDERR_FILENO : fd;
+
+printf("[SYSCALL_WRITE] Writing to fd=%d: ", host_fd);
+ssize_t bytes_written = write(host_fd, temp_buffer, to_read);
+printf("\n[SYSCALL_WRITE] Wrote %ld bytes\n", bytes_written);
+fflush(stdout);
+fflush(stderr);
+
+result = (bytes_written > 0) ? bytes_written : 0;
+return B_OK;
 }
 
 status_t Haiku32SyscallDispatcher::SyscallBrk(uint32 addr, uint32 &result) {

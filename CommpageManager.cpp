@@ -36,7 +36,7 @@ status_t CommpageManager::Setupx86Commpage(AddressSpace &addressSpace,
     return area;
   }
 
-  uint32_t vaddr = (uint32_t)(unsigned long long)addr;
+  uint32_t vaddr = (uint32_t)(uintptr_t)addr;
   guestAddress = vaddr;
   printf("[Commpage] Area created at 0x%08x\n", vaddr);
 
