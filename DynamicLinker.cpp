@@ -81,6 +81,14 @@ void DynamicLinker::SetSearchPath(const char *path)
 	}
 }
 
+void DynamicLinker::AddLibrary(const char *name, ElfImage *image)
+{
+	if (name && image) {
+		fLibraries[name] = image;
+		printf("[LINKER] Added library '%s' at %p\n", name, image->GetImageBase());
+	}
+}
+
 std::string DynamicLinker::ResolveLibPath(const char *name)
 {
 	if (!name) return "";

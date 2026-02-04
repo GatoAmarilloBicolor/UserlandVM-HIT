@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Loader.h"
+#include "DynamicLinker.h"
 #include <OS.h>
 
 // Execute x86 32-bit binaries on x86 64-bit host
@@ -19,11 +20,14 @@ private:
 		size_t stackSize;
 		uint32 entryPoint;
 		uint32 stackPointer;
+		DynamicLinker *linker;  // For loading dependencies
 	};
 
 	bool SetupX86Environment(ProgramContext &ctx, char **argv, char **env);
 	bool BuildX86Stack(ProgramContext &ctx, char **argv, char **env);
 	void *AllocateStack(size_t size);
+	bool LoadDependencies(ProgramContext &ctx, ElfImage *image);
+	bool ResolveDynamicSymbols(ProgramContext &ctx, ElfImage *image);
 
 	static const size_t DEFAULT_STACK_SIZE = 0x100000;  // 1MB stack
 };

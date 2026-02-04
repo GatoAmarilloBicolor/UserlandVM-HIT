@@ -28,6 +28,9 @@ public:
 
 	// Set library search paths
 	void SetSearchPath(const char *path);
+	
+	// Add a loaded library directly
+	void AddLibrary(const char *name, ElfImage *image);
 
 private:
 	std::map<std::string, ElfImage*> fLibraries;

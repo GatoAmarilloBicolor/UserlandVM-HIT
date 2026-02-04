@@ -38,6 +38,17 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath, char **argv
 	ctx.image = image.Get();
 	ctx.entryPoint = (uint32)(addr_t)image->GetEntry();
 	ctx.stackSize = DEFAULT_STACK_SIZE;
+	ctx.linker = new DynamicLinker();
+	
+	// Load dynamic dependencies
+	if (image->IsDynamic()) {
+		printf("[X86] Loading dynamic dependencies\n");
+		fflush(stdout);
+		if (!LoadDependencies(ctx, image.Get())) {
+			fprintf(stderr, "[X86] Failed to load dependencies\n");
+			return 1;
+		}
+	}
 	
 	// Allocate stack for guest program
 	ctx.stackBase = AllocateStack(ctx.stackSize);
@@ -142,5 +153,50 @@ bool ExecutionBootstrap::SetupX86Environment(ProgramContext &ctx, char **argv, c
 	// - Commpage
 	// - Initial registers
 	
+	return true;
+}
+
+bool ExecutionBootstrap::LoadDependencies(ProgramContext &ctx, ElfImage *image)
+{
+	if (!image->IsDynamic()) {
+		return true;  // No dependencies for static binaries
+	}
+	
+	printf("[X86] Scanning for dependencies in %s\n", image->GetPath());
+	fflush(stdout);
+	
+	// For now, we'll just try to load libroot.so from the standard locations
+	const char *libPaths[] = {
+		"./sysroot/haiku32/lib/libroot.so",
+		"./sysroot/haiku32/lib/x86/libroot.so",
+		"./sysroot/haiku32/system/lib/libroot.so",
+		"/boot/home/src/UserlandVM-HIT/sysroot/haiku32/lib/libroot.so",
+		NULL
+	};
+	
+	for (int i = 0; libPaths[i] != NULL; i++) {
+		FILE *f = fopen(libPaths[i], "rb");
+		if (f) {
+			fclose(f);
+			printf("[X86] Loading libroot.so from %s\n", libPaths[i]);
+			fflush(stdout);
+			
+			ElfImage *libroot = ElfImage::Load(libPaths[i]);
+			if (libroot) {
+				ctx.linker->AddLibrary("libroot.so", libroot);
+				printf("[X86] libroot.so loaded at %p\n", libroot->GetImageBase());
+				return true;
+			}
+		}
+	}
+	
+	printf("[X86] Warning: Could not find libroot.so\n");
+	return false;  // Continue anyway, some syscalls might work
+}
+
+bool ExecutionBootstrap::ResolveDynamicSymbols(ProgramContext &ctx, ElfImage *image)
+{
+	// TODO: Implement symbol resolution
+	// For now, this is a stub
 	return true;
 }
