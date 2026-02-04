@@ -33,16 +33,16 @@ ElfImage *DynamicLinker::LoadLibrary(const char *path)
 
 	// Try to load
 	std::string fullPath = ResolveLibPath(path);
-	printf("[DL] Loading library: %s\n", fullPath.c_str());
+	printf("[LINKER] Loading library: %s\n", fullPath.c_str());
 
 	ElfImage *image = ElfImage::Load(fullPath.c_str());
 	if (!image) {
-		printf("[DL] Failed to load: %s\n", fullPath.c_str());
+		printf("[LINKER] Failed to load: %s\n", fullPath.c_str());
 		return NULL;
 	}
 
 	fLibraries[libName] = image;
-	printf("[DL] Loaded %s at %p\n", libName.c_str(), image->GetImageBase());
+	printf("[LINKER] Loaded %s at %p\n", libName.c_str(), image->GetImageBase());
 	return image;
 }
 
@@ -54,12 +54,12 @@ bool DynamicLinker::FindSymbol(const char *name, void **address, size_t *size)
 	for (auto &pair : fLibraries) {
 		ElfImage *lib = pair.second;
 		if (lib && lib->FindSymbol(name, address, size)) {
-			printf("[DL] Found symbol '%s' at %p\n", name, *address);
+			printf("[LINKER] Found symbol '%s' at %p\n", name, *address);
 			return true;
 		}
 	}
 
-	printf("[DL] Symbol '%s' not found\n", name);
+	printf("[LINKER] Symbol '%s' not found\n", name);
 	return false;
 }
 

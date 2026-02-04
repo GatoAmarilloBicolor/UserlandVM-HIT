@@ -356,7 +356,8 @@ int main(int argc, char **argv, char **env)
 		fflush(stdout);
 
 		ExecutionBootstrap bootstrap;
-		return bootstrap.ExecuteProgram(programPath, curArgv, env);
+		status_t res = bootstrap.ExecuteProgram(programPath, curArgv, env);
+		return res;
 	}
 
 	if (arch && (strcmp(arch, "riscv64") == 0 || strcmp(arch, "riscv32") == 0)) {

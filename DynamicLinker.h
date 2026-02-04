@@ -3,6 +3,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <OS.h>
 #include "Loader.h"
 
 class DynamicLinker {

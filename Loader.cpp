@@ -22,20 +22,41 @@ static void Assert(bool cond)
 	if (!cond) abort();
 }
 
-static void FileRead(FILE *f, void *data, size_t size)
+static bool FileRead(FILE *f, void *data, size_t size)
 {
-	Assert(fread(data, size, 1, f) == 1);
+	size_t read = fread(data, size, 1, f);
+	if (read != 1) {
+		printf("[FileRead] ERROR: Expected %zu bytes, got %zu\n", size, read * size);
+		return false;
+	}
+	return true;
 }
 
 template<typename Class>
 void ElfImageImpl<Class>::LoadHeaders()
 {
+	printf("[ELF] LoadHeaders starting\n");
+	fflush(stdout);
+	
 	fseek(fFile.Get(), 0, SEEK_SET);
-	FileRead(fFile.Get(), &fHeader, sizeof(fHeader));
+	if (!FileRead(fFile.Get(), &fHeader, sizeof(fHeader))) {
+		printf("[ELF] ERROR: Failed to read ELF header\n");
+		abort();
+	}
+	
+	printf("[ELF] ELF Header loaded: e_machine=%u, e_phnum=%u\n", 
+	       fHeader.e_machine, fHeader.e_phnum);
+	fflush(stdout);
+	
 	fPhdrs.SetTo(new typename Class::Phdr[fHeader.e_phnum]);
 	for (uint32 i = 0; i < fHeader.e_phnum; i++) {
 		fseek(fFile.Get(), fHeader.e_phoff + (off_t)i*fHeader.e_phentsize, SEEK_SET);
-		FileRead(fFile.Get(), &fPhdrs[i], sizeof(typename Class::Phdr));
+		if (!FileRead(fFile.Get(), &fPhdrs[i], sizeof(typename Class::Phdr))) {
+			printf("[ELF] ERROR: Failed to read program header %u\n", i);
+			abort();
+		}
+		printf("[ELF] Program header %u: type=%u, offset=%u\n", 
+		       i, fPhdrs[i].p_type, (uint32)fPhdrs[i].p_offset);
 	}
 }
 
@@ -73,12 +94,27 @@ void ElfImageImpl<Class>::LoadSegments()
 	
 	for (uint32 i = 0; i < fHeader.e_phnum; i++) {
 		typename Class::Phdr &phdr = fPhdrs[i];
+		printf("[ELF] Processing segment %u: type=%u\n", i, phdr.p_type);
+		fflush(stdout);
+		
 		switch (phdr.p_type) {
 			case PT_LOAD: {
-				printf("[ELF] Loading segment %u: vaddr=%#" B_PRIx64 " filesz=%#" B_PRIx64 " memsz=%#" B_PRIx64 "\n",
-					   i, (uint64)phdr.p_vaddr, (uint64)phdr.p_filesz, (uint64)phdr.p_memsz);
+				printf("[ELF] Loading PT_LOAD segment %u: vaddr=%#" B_PRIx64 " filesz=%#" B_PRIx64 " memsz=%#" B_PRIx64 " offset=%#" B_PRIx64 "\n",
+					   i, (uint64)phdr.p_vaddr, (uint64)phdr.p_filesz, (uint64)phdr.p_memsz, (uint64)phdr.p_offset);
+				fflush(stdout);
+				
 				fseek(fFile.Get(), phdr.p_offset, SEEK_SET);
-				FileRead(fFile.Get(), FromVirt(phdr.p_vaddr), phdr.p_filesz);
+				void *dst = FromVirt(phdr.p_vaddr);
+				printf("[ELF] Seeking to offset %#" B_PRIx64 ", reading %#" B_PRIx64 " bytes to %p\n",
+					   (uint64)phdr.p_offset, (uint64)phdr.p_filesz, dst);
+				fflush(stdout);
+				
+				if (!FileRead(fFile.Get(), dst, phdr.p_filesz)) {
+					printf("[ELF] ERROR: Failed to read segment data\n");
+					abort();
+				}
+				printf("[ELF] Segment %u loaded successfully\n", i);
+				fflush(stdout);
 				break;
 			}
 			case PT_DYNAMIC: {
@@ -90,6 +126,9 @@ void ElfImageImpl<Class>::LoadSegments()
 				printf("[ELF] Interpreter segment found\n");
 				break;
 			}
+			default:
+				printf("[ELF] Ignoring segment type %u\n", phdr.p_type);
+				break;
 		}
 	}
 }

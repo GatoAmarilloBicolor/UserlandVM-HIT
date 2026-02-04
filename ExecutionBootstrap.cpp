@@ -13,7 +13,7 @@ ExecutionBootstrap::~ExecutionBootstrap()
 {
 }
 
-int ExecutionBootstrap::ExecuteProgram(const char *programPath, char **argv, char **env)
+status_t ExecutionBootstrap::ExecuteProgram(const char *programPath, char **argv, char **env)
 {
 	if (!programPath) {
 		fprintf(stderr, "[X86] No program path provided\n");

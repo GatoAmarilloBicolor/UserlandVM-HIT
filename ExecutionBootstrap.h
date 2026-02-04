@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Loader.h"
+#include <OS.h>
 
 // Execute x86 32-bit binaries on x86 64-bit host
 class ExecutionBootstrap {
@@ -9,7 +10,7 @@ public:
 	~ExecutionBootstrap();
 
 	// Load and execute x86 32-bit Haiku program
-	int ExecuteProgram(const char *programPath, char **argv, char **env);
+	status_t ExecuteProgram(const char *programPath, char **argv, char **env);
 
 private:
 	struct ProgramContext {
