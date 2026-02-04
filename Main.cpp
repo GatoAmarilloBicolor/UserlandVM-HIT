@@ -360,6 +360,24 @@ int main(int argc, char **argv, char **env)
 		return res;
 	}
 
+	if (arch && strcmp(arch, "x86_64") == 0) {
+		// x86-64 bit Haiku program
+		fprintf(stderr, "[MAIN] x86-64 architecture detected but not yet supported\n");
+		return B_NOT_SUPPORTED;
+	}
+
+	if (arch && strcmp(arch, "arm64") == 0) {
+		// ARM64 bit Haiku program
+		fprintf(stderr, "[MAIN] ARM64 architecture detected but not yet supported\n");
+		return B_NOT_SUPPORTED;
+	}
+
+	if (arch && strcmp(arch, "arm") == 0) {
+		// ARM 32-bit Haiku program
+		fprintf(stderr, "[MAIN] ARM 32-bit architecture detected but not yet supported\n");
+		return B_NOT_SUPPORTED;
+	}
+
 	if (arch && (strcmp(arch, "riscv64") == 0 || strcmp(arch, "riscv32") == 0)) {
 		// RISC-V program - use original execution path
 		printf("[MAIN] Executing RISC-V program\n");
