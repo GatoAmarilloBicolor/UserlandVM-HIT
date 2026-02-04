@@ -84,4 +84,4 @@ __pycache__/
 
 # Generated files
 *.generated.*
-*.d
+*.dexternal/haiku/
