@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <cstdio>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 thread_id vm_spawn_thread(struct thread_creation_attributes* attributes);
 void vm_exit_thread(status_t returnValue);
@@ -19,8 +21,61 @@ status_t vm_sigaction(int sig, const struct sigaction *action, struct sigaction 
 #define _kern_exec vm_exec
 
 
+// Recycled kernel syscall dispatcher
+// Instead of reimplementing each syscall, we delegate to the kernel
+static inline uint64 CallKernelSyscall(uint32 op, uint64 *args)
+{
+	// Use the kernel's generic syscall interface
+	// This recycles all Haiku kernel syscalls directly
+	return _kern_generic_syscall("kernel", op, args, 20 * sizeof(uint64));
+}
+
 void DispatchSyscall(uint32 op, uint64 *args, uint64 *_returnValue)
 {
+	// For most syscalls, delegate directly to kernel
+	// Only implement custom ones for guest memory translation
+	
+	// Custom syscalls (300+) for guest-specific operations
+	if (op >= 300) {
+		switch (op) {
+			case 300:
+				// write(int fd, const void *buf, size_t count) - handle stdout/stderr
+				{
+					int fd = (int)*(long*)args;
+					const void *buf = *(const void **)((char*)args + 8);
+					size_t count = *(size_t*)((char*)args + 16);
+					
+					if (fd == 1 || fd == 2) {
+						// stdout or stderr
+						ssize_t ret = fwrite(buf, 1, count, fd == 1 ? stdout : stderr);
+						fflush(fd == 1 ? stdout : stderr);
+						*_returnValue = ret;
+					} else {
+						// Recycle kernel syscall
+						*_returnValue = write(fd, buf, count);
+					}
+				}
+				return;
+			case 301:
+				// read(int fd, void *buf, size_t count)
+				{
+					int fd = (int)*(long*)args;
+					void *buf = *(void **)((char*)args + 8);
+					size_t count = *(size_t*)((char*)args + 16);
+					*_returnValue = read(fd, buf, count);
+				}
+				return;
+			case 302:
+				// exit(int status)
+				{
+					int status = (int)*(long*)args;
+					exit(status);
+				}
+				return;
+		}
+	}
+	
+	// Recycle kernel syscalls for op < 300
 	switch (op) {
 		case 0:
 			*_returnValue = _kern_is_computer_on();
@@ -882,7 +937,20 @@ void DispatchSyscall(uint32 op, uint64 *args, uint64 *_returnValue)
 			*_returnValue = _kern_stop_watching_disks((port_id)*(long*)args, (int32)*(long*)((char*)args + 8));
 			break;
 		
-		// Additional syscalls for emulator support
+		// Kernel syscalls are recycled above (op < 300)
+		// Custom guest syscalls (op >= 300) handled separately
+		default:
+			// For unhandled syscalls, delegate to kernel
+			printf("[syscall] Unhandled syscall %u, delegating to kernel\n", op);
+			*_returnValue = CallKernelSyscall(op, args);
+			break;
+	}
+}
+
+// Legacy custom syscall handlers (kept for reference)
+void DispatchSyscallLegacy(uint32 op, uint64 *args, uint64 *_returnValue)
+{
+	switch (op) {
 		case 300:
 			// write(int fd, const void *buf, size_t count)
 			{
@@ -923,6 +991,79 @@ void DispatchSyscall(uint32 op, uint64 *args, uint64 *_returnValue)
 			{
 				int status = (int)*(long*)args;
 				exit(status);
+			}
+			break;
+		
+		case 303:
+			// open(const char *path, int oflags, mode_t mode)
+			{
+				const char *path = *(const char **)args;
+				int oflags = (int)*(long*)((char*)args + 8);
+				mode_t mode = (mode_t)*(long*)((char*)args + 16);
+				
+				if (!path) {
+					*_returnValue = -1;
+				} else {
+					*_returnValue = open(path, oflags, mode);
+				}
+			}
+			break;
+		
+		case 304:
+			// close(int fd)
+			{
+				int fd = (int)*(long*)args;
+				*_returnValue = close(fd);
+			}
+			break;
+		
+		case 305:
+			// fstat(int fd, struct stat *st)
+			{
+				int fd = (int)*(long*)args;
+				struct stat *st = *(struct stat **)((char*)args + 8);
+				
+				if (!st) {
+					*_returnValue = -1;
+				} else {
+					*_returnValue = fstat(fd, st);
+				}
+			}
+			break;
+		
+		case 306:
+			// stat(const char *path, struct stat *st)
+			{
+				const char *path = *(const char **)args;
+				struct stat *st = *(struct stat **)((char*)args + 8);
+				
+				if (!path || !st) {
+					*_returnValue = -1;
+				} else {
+					*_returnValue = stat(path, st);
+				}
+			}
+			break;
+		
+		case 307:
+			// getcwd(char *buf, size_t size)
+			{
+				char *buf = *(char **)args;
+				size_t size = *(size_t*)((char*)args + 8);
+				
+				if (getcwd(buf, size)) {
+					*_returnValue = (uint64)(addr_t)buf;
+				} else {
+					*_returnValue = 0;
+				}
+			}
+			break;
+		
+		case 308:
+			// chdir(const char *path)
+			{
+				const char *path = *(const char **)args;
+				*_returnValue = chdir(path);
 			}
 			break;
 	}
