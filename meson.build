@@ -60,10 +60,29 @@ executable(
 	'VirtualCpuX86Test.cpp',
 	'Main.cpp',
 	include_directories: [
+<<<<<<< Updated upstream
 		'/boot/system/develop/headers',
 		'/boot/system/develop/headers/private/shared',
 		'/boot/system/develop/headers/private/system',
 		'/boot/system/develop/headers/private/system/arch/x86_64',
+=======
+		'external/haiku/headers',
+		'external/haiku/headers/os',
+		'external/haiku/headers/os/kernel',
+		'external/haiku/headers/os/support',
+		'external/haiku/headers/os/app',
+		'external/haiku/headers/os/interface',
+		'external/haiku/headers/os/storage',
+		'external/haiku/headers/posix',
+		'external/haiku/headers/private/system',
+		'external/haiku/headers/private/system/arch/x86',
+		'external/haiku/headers/private/shared',
+		'external/haiku/headers/private/app',
+		'external/haiku/headers/private/interface',
+		'external/haiku/headers/private/kernel',
+		'external/haiku/headers/private/libroot',
+		'external/haiku/headers/private/runtime_loader',
+>>>>>>> Stashed changes
 	],
 	gnu_symbol_visibility: 'hidden',
 	install: true

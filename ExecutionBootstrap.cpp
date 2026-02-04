@@ -2,37 +2,109 @@
 #include "VirtualCpuX86Native.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
+#include <unistd.h>
 
-ExecutionBootstrap::ExecutionBootstrap()
-{
+ExecutionBootstrap::ExecutionBootstrap() {}
+
+ExecutionBootstrap::~ExecutionBootstrap() {}
+
+status_t ExecutionBootstrap::ExecuteProgram(const char *programPath,
+                                            char **argv, char **env) {
+  if (!programPath) {
+    fprintf(stderr, "[X86] No program path provided\n");
+    return 1;
+  }
+
+  printf("[X86] Loading x86 32-bit Haiku program: %s\n", programPath);
+  fflush(stdout);
+
+  // Load the ELF binary
+  ObjectDeleter<ElfImage> image(ElfImage::Load(programPath));
+  if (!image.IsSet()) {
+    fprintf(stderr, "[X86] Failed to load program\n");
+    return 1;
+  }
+
+  printf("[X86] Program loaded at %p, entry=%p\n", image->GetImageBase(),
+         image->GetEntry());
+  fflush(stdout);
+
+  // Setup execution context
+  ProgramContext ctx;
+  ctx.image = image.Get();
+  ctx.entryPoint = (uint32)(unsigned long long)image->GetEntry();
+  ctx.stackSize = DEFAULT_STACK_SIZE;
+
+  // Allocate stack for guest program
+  ctx.stackBase = AllocateStack(ctx.stackSize);
+  if (!ctx.stackBase) {
+    fprintf(stderr, "[X86] Failed to allocate stack\n");
+    return 1;
+  }
+
+  ctx.stackPointer = (uint32)(unsigned long long)ctx.stackBase + ctx.stackSize;
+  printf("[X86] Stack allocated at %p, sp=%#x\n", ctx.stackBase,
+         ctx.stackPointer);
+  fflush(stdout);
+
+  // Build the stack with arguments
+  if (!BuildX86Stack(ctx, argv, env)) {
+    fprintf(stderr, "[X86] Failed to build stack\n");
+    return 1;
+  }
+
+  printf("[X86] Ready to execute x86 32-bit program\n");
+  printf("[X86] Entry point: %#x\n", ctx.entryPoint);
+  printf("[X86] Stack pointer: %#x\n", ctx.stackPointer);
+  printf("[X86] ===== Program Output =====\n");
+  fflush(stdout);
+
+  // Create VirtualCpuX86Native and execute
+  VirtualCpuX86Native cpu;
+
+  // Set initial registers
+  cpu.Ip() = ctx.entryPoint;
+  cpu.Regs()[4] = ctx.stackPointer; // ESP = stack pointer
+
+  printf("[X86] CPU initialized, jumping to entry point\n");
+  fflush(stdout);
+
+  // Run the program
+  cpu.Run();
+
+  printf("[X86] ===== Program Terminated =====\n");
+  fflush(stdout);
+
+  return 0;
 }
 
-ExecutionBootstrap::~ExecutionBootstrap()
-{
+void *ExecutionBootstrap::AllocateStack(size_t size) {
+  // Allocate 32-bit addressable memory for stack
+  // For now, use malloc (should use vm32_create_area)
+  void *stack = malloc(size);
+  printf("[X86] Allocated stack: %p (size=%zu)\n", stack, size);
+  return stack;
 }
 
-status_t ExecutionBootstrap::ExecuteProgram(const char *programPath, char **argv, char **env)
-{
-	if (!programPath) {
-		fprintf(stderr, "[X86] No program path provided\n");
-		return 1;
-	}
+bool ExecutionBootstrap::BuildX86Stack(ProgramContext &ctx, char **argv,
+                                       char **env) {
+  printf("[X86] Building stack with %zu bytes available\n", ctx.stackSize);
 
-	printf("[X86] Loading x86 32-bit Haiku program: %s\n", programPath);
-	fflush(stdout);
+  // Build stack frame at the top of the stack going downward
+  uint32 sp = ctx.stackPointer;
+  uint8 *stack_base = (uint8 *)ctx.stackBase;
 
-	// Load the ELF binary
-	ObjectDeleter<ElfImage> image(ElfImage::Load(programPath));
-	if (!image.IsSet()) {
-		fprintf(stderr, "[X86] Failed to load program\n");
-		return 1;
-	}
+  // Count arguments and environment variables
+  int argc = 0;
+  while (argv && argv[argc])
+    argc++;
 
-	printf("[X86] Program loaded at %p, entry=%p\n", image->GetImageBase(), image->GetEntry());
-	fflush(stdout);
+  int envc = 0;
+  while (env && env[envc])
+    envc++;
 
+<<<<<<< Updated upstream
 	// Setup execution context
 	ProgramContext ctx;
 	ctx.image = image.Get();
@@ -56,104 +128,64 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath, char **argv
 		fprintf(stderr, "[X86] Failed to allocate stack\n");
 		return 1;
 	}
+=======
+  printf("[X86] argc=%d, envc=%d\n", argc, envc);
+>>>>>>> Stashed changes
 
-	ctx.stackPointer = (uint32)(addr_t)ctx.stackBase + ctx.stackSize;
-	printf("[X86] Stack allocated at %p, sp=%#x\n", ctx.stackBase, ctx.stackPointer);
-	fflush(stdout);
+  // Stack layout (x86):
+  // [esp + 0]  = argc
+  // [esp + 4]  = argv[0]
+  // [esp + 8]  = argv[1]
+  // ...
+  // [esp + 4*(argc+1)] = NULL
+  // [esp + 4*(argc+2)] = env[0]
+  // ...
 
-	// Build the stack with arguments
-	if (!BuildX86Stack(ctx, argv, env)) {
-		fprintf(stderr, "[X86] Failed to build stack\n");
-		return 1;
-	}
+  // For now, just set up argc at stack pointer
+  // This is simplified - a full implementation would copy strings
 
-	printf("[X86] Ready to execute x86 32-bit program\n");
-	printf("[X86] Entry point: %#x\n", ctx.entryPoint);
-	printf("[X86] Stack pointer: %#x\n", ctx.stackPointer);
-	printf("[X86] ===== Program Output =====\n");
-	fflush(stdout);
+  // Write argc
+  if (sp >= 4) {
+    sp -= 4;
+    *(uint32 *)(stack_base + (sp - (uint32)(unsigned long long)stack_base)) =
+        argc;
+    printf("[X86] Wrote argc=%d at %#x\n", argc, sp);
+  }
 
-	// Create VirtualCpuX86Native and execute
-	VirtualCpuX86Native cpu;
-	
-	// Set initial registers
-	cpu.Ip() = ctx.entryPoint;
-	cpu.Regs()[4] = ctx.stackPointer;  // ESP = stack pointer
-	
-	printf("[X86] CPU initialized, jumping to entry point\n");
-	fflush(stdout);
-	
-	// Run the program
-	cpu.Run();
-	
-	printf("[X86] ===== Program Terminated =====\n");
-	fflush(stdout);
-	
-	return 0;
+  // Update stack pointer
+  ctx.stackPointer = sp;
+
+  printf("[X86] Stack frame built, new sp=%#x\n", ctx.stackPointer);
+  return true;
 }
 
-void *ExecutionBootstrap::AllocateStack(size_t size)
-{
-	// Allocate 32-bit addressable memory for stack
-	// For now, use malloc (should use vm32_create_area)
-	void *stack = malloc(size);
-	printf("[X86] Allocated stack: %p (size=%zu)\n", stack, size);
-	return stack;
-}
+#include "CommpageManager.h"
+#include "DirectAddressSpace.h"
+#include "TLSSetup.h"
 
-bool ExecutionBootstrap::BuildX86Stack(ProgramContext &ctx, char **argv, char **env)
-{
-	printf("[X86] Building stack with %zu bytes available\n", ctx.stackSize);
+bool ExecutionBootstrap::SetupX86Environment(ProgramContext &ctx, char **argv,
+                                             char **env) {
+  (void)ctx;
+  (void)argv;
+  (void)env;
+  printf("[X86] Setting up execution environment\n");
 
-	// Build stack frame at the top of the stack going downward
-	uint32 sp = ctx.stackPointer;
-	uint8 *stack_base = (uint8 *)ctx.stackBase;
-	
-	// Count arguments and environment variables
-	int argc = 0;
-	while (argv && argv[argc]) argc++;
-	
-	int envc = 0;
-	while (env && env[envc]) envc++;
-	
-	printf("[X86] argc=%d, envc=%d\n", argc, envc);
-	
-	// Stack layout (x86):
-	// [esp + 0]  = argc
-	// [esp + 4]  = argv[0]
-	// [esp + 8]  = argv[1]
-	// ...
-	// [esp + 4*(argc+1)] = NULL
-	// [esp + 4*(argc+2)] = env[0]
-	// ...
-	
-	// For now, just set up argc at stack pointer
-	// This is simplified - a full implementation would copy strings
-	
-	// Write argc
-	if (sp >= 4) {
-		sp -= 4;
-		*(uint32 *)(stack_base + (sp - (uint32)(addr_t)stack_base)) = argc;
-		printf("[X86] Wrote argc=%d at %#x\n", argc, sp);
-	}
-	
-	// Update stack pointer
-	ctx.stackPointer = sp;
-	
-	printf("[X86] Stack frame built, new sp=%#x\n", ctx.stackPointer);
-	return true;
-}
+  // Create a temporary AddressSpace that maps to the host 32-bit window
+  DirectAddressSpace space;
 
-bool ExecutionBootstrap::SetupX86Environment(ProgramContext &ctx, char **argv, char **env)
-{
-	printf("[X86] Setting up execution environment\n");
-	
-	// TODO: Setup:
-	// - Thread local storage (TLS)
-	// - Commpage
-	// - Initial registers
-	
-	return true;
+  // Setup commpage
+  uint32_t commpageAddr = 0;
+  if (CommpageManager::Setupx86Commpage(space, commpageAddr) == B_OK) {
+    printf("[X86] Commpage initialized at 0x%08x\n", commpageAddr);
+  }
+
+  // Setup thread local storage (TLS)
+  printf("[X86] Initializing TLS\n");
+  if (TLSSetup::Initialize(space, 1) != B_OK) {
+    printf("[X86] WARNING: TLS setup failed\n");
+  }
+
+  return true;
 }
 
 bool ExecutionBootstrap::LoadDependencies(ProgramContext &ctx, ElfImage *image)
