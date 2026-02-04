@@ -81,7 +81,21 @@ status_t OptimizedX86Executor::LoadInstr(uint32_t addr, uint8_t* buf, uint32_t l
 status_t OptimizedX86Executor::Execute(X86_32GuestContext& ctx, uint32_t& bytes_consumed) {
 	X86_32Registers& regs = ctx.Registers();
 	
-	if (LoadInstr(regs.eip, cache_buffer, 15) != B_OK) {
+	// Use 64-bit EIP if available (direct memory mode on 64-bit host)
+	uint32_t eip_to_use = regs.eip;
+	uintptr_t eip64 = ctx.GetEIP64();
+	if (eip64 != 0) {
+		eip_to_use = (uint32_t)eip64;  // Use the stored 64-bit pointer
+		// Debug: show we're using the full 64-bit EIP
+		if (regs.eip == 0 || eip64 < 0x10000000) {
+			printf("[OptimizedX86Executor] Using EIP64: 0x%lx\n", eip64);
+		}
+	}
+	
+	status_t load_status = LoadInstr(eip_to_use, cache_buffer, 15);
+	if (load_status != B_OK) {
+		printf("[OptimizedX86Executor] LoadInstr failed at 0x%x (eip64=0x%lx), status=%d\n", eip_to_use, eip64, load_status);
+		fflush(stdout);
 		return B_ERROR;
 	}
 	

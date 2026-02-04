@@ -39,6 +39,11 @@ public:
 	// Acceso a los registros del invitado.
 	X86_32Registers& Registers() { return fRegisters; }
 	const X86_32Registers& Registers() const { return fRegisters; }
+	
+	// In direct memory mode on 64-bit host, we need to store 64-bit pointers
+	// Store the actual EIP as a 64-bit pointer
+	void SetEIP64(uintptr_t eip64) { fEIP64 = eip64; }
+	uintptr_t GetEIP64() const { return fEIP64; }
 
 	// Métodos para leer/escribir en la memoria del invitado a través del contexto.
 	// Estos delegan en el AddressSpace proporcionado.
@@ -63,4 +68,5 @@ private:
 	bool fShouldExit = false;
 	uint32_t fImageBase = 0x40000000;  // Default base for ET_DYN binaries
 	std::unique_ptr<FloatingPointUnit> fFPU;  // Floating Point Unit for x87 operations
+	uintptr_t fEIP64 = 0;  // Store 64-bit EIP for direct memory mode on 64-bit host
 };

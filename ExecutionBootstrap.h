@@ -20,7 +20,7 @@ private:
 		ElfImage *image;
 		void *stackBase;
 		size_t stackSize;
-		uint32 entryPoint;
+		uintptr_t entryPoint;  // Use uintptr_t to store full 64-bit pointers on 64-bit hosts
 		uint32 stackPointer;
 		DynamicLinker *linker;  // For loading dependencies
 	};

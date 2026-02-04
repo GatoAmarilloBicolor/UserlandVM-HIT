@@ -40,7 +40,15 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath,
   // Setup execution context
   ProgramContext ctx;
   ctx.image = image.Get();
-  ctx.entryPoint = (uint32)(unsigned long long)image->GetEntry();
+  // WARNING: In direct memory mode on 64-bit host, entry points are 64-bit pointers
+  // but X86_32GuestContext uses 32-bit EIP. This truncation is intentional - we use
+  // the lower 32 bits as an offset and rely on direct memory access to work with
+  // the actual 64-bit host pointers
+  void *fullEntryPoint = image->GetEntry();
+  ctx.entryPoint = (uintptr_t)fullEntryPoint;  // Keep as uintptr_t (64-bit on 64-bit host)
+  printf("[X86] Entry point: %p (will be used as host pointer)\n", fullEntryPoint);
+  printf("[X86] Entry point as stored: 0x%lx\n", ctx.entryPoint);
+  fflush(stdout);
   ctx.stackSize = DEFAULT_STACK_SIZE;
   ctx.linker = new DynamicLinker();
 
@@ -134,7 +142,11 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath,
   regs.edi = 0;
   regs.esp = ctx.stackPointer;
   regs.ebp = ctx.stackPointer;
-  regs.eip = ctx.entryPoint;
+  // In direct memory mode, store 64-bit entry point separately
+  guestContext.SetEIP64(ctx.entryPoint);
+  regs.eip = (uint32)ctx.entryPoint;  // Also store lower 32 bits in case needed
+  printf("[X86] Setting EIP: full address=0x%lx, 32-bit=0x%x\n", ctx.entryPoint, regs.eip);
+  fflush(stdout);
   regs.eflags = 0x202; // IF and reserved bits
   
   printf("[X86] Guest context initialized\n");
@@ -147,10 +159,44 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath,
   printf("[X86] Starting x86-32 interpreter\n");
   fflush(stdout);
   
-  // Execute using the interpreter
+  // Execute using the interpreter in a loop
   OptimizedX86Executor executor(addressSpace, syscallDispatcher);
   uint32 exitCode = 0;
-  executor.Execute(guestContext, exitCode);
+  uint32 instructionCount = 0;
+  const uint32 MAX_INSTRUCTIONS = 1000000;  // Safety limit to prevent infinite loops
+  
+  printf("[X86] Execution loop starting, max %u instructions\n", MAX_INSTRUCTIONS);
+  fflush(stdout);
+  
+  while (!guestContext.ShouldExit() && instructionCount < MAX_INSTRUCTIONS) {
+    printf("[X86Loop] Before execute, instruction %u\n", instructionCount);
+    fflush(stdout);
+    
+    status_t status = executor.Execute(guestContext, exitCode);
+    
+    printf("[X86Loop] After execute, status=%d\n", status);
+    fflush(stdout);
+    
+    if (status != B_OK) {
+      printf("[X86] Executor returned error: %d at instruction %u\n", status, instructionCount);
+      fflush(stdout);
+      break;
+    }
+    
+    instructionCount++;
+    
+    // Print progress every 10 instructions (for debugging)
+    if (instructionCount % 10 == 0) {
+      printf("[X86] Executed %u instructions\n", instructionCount);
+      fflush(stdout);
+    }
+  }
+  
+  if (instructionCount >= MAX_INSTRUCTIONS) {
+    printf("[X86] WARNING: Reached instruction limit (%u), possible infinite loop\n", MAX_INSTRUCTIONS);
+  } else {
+    printf("[X86] Program exited normally after %u instructions\n", instructionCount);
+  }
 
   printf("[X86] ===== Program Terminated with code %u =====\n", exitCode);
   fflush(stdout);

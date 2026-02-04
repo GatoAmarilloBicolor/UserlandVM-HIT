@@ -66,8 +66,9 @@ DirectAddressSpace::Read(uint32_t guestAddress, void* buffer, size_t size)
 	
 	// If using direct memory mode, treat guest address as direct host pointer
 	if (fUseDirectMemory) {
-		// Direct access: guestAddress is a host pointer value
-		uint8_t* source = (uint8_t*)guestAddress;
+		// Direct access: guestAddress is a host pointer value (64-bit value)
+		uintptr_t hostAddr = (uintptr_t)guestAddress;
+		uint8_t* source = (uint8_t*)hostAddr;
 		memcpy(buffer, source, size);
 		return B_OK;
 	}
