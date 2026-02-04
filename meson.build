@@ -6,12 +6,17 @@ project(
 
 cpp = meson.get_compiler('cpp')
 
-subdir('rvvm')
-subdir('temu')
-
-dep_rvvm = declare_dependency(
-	link_with: rvvm
-)
+# RISC-V disabled for now - focus on x86-32 first
+# subdir('rvvm')
+# Temu disabled for now - focus on x86-32 first
+# subdir('temu')
+# addon_rvvm = shared_library('temu',
+# 	'VirtualCpuRiscVTemu.cpp',	
+# 	cpp_args: temu_defines + ['-DMAX_XLEN=64'],
+# 	link_with: [temu],
+# 	gnu_symbol_visibility: 'hidden',
+# 	install: true
+# )
 
 
 addon_temu = shared_library('temu',
@@ -25,24 +30,24 @@ dep_addon_temu = declare_dependency(
 	link_with: addon_temu
 )
 
-addon_rvvm = shared_library('rvvm',
-	'VirtualCpuRiscVRvvm.cpp',
-	link_with: [rvvm],
-	cpp_args: rvvm_defines + ['-DMAX_XLEN=64'],
-	gnu_symbol_visibility: 'hidden',
-	install: true
-)
-dep_addon_rvvm = declare_dependency(
-	link_with: addon_rvvm
-)
+# RISC-V components disabled for now - focus on x86-32
+# addon_rvvm = shared_library('rvvm',
+# 	'VirtualCpuRiscVRvvm.cpp',
+# 	cpp_args: rvvm_defines + ['-DMAX_XLEN=64'],
+# 	link_with: [rvvm],
+# 	gnu_symbol_visibility: 'hidden',
+# 	install: true
+# )
 
-# addon_rvvm2 disabled - API mismatch with current RVVM version
-# addon_rvvm2 = shared_library('rvvm2',
+# addon_rvvm2 = shared_library('rvvm',
 # 	'VirtualCpuRiscVRvvm2.cpp',
 # 	'Referenceable.cpp',
 # 	dependencies: [dep_rvvm],
 # 	gnu_symbol_visibility: 'hidden',
 # 	install: true
+# )
+# dep_addon_rvvm = declare_dependency(
+# 	link_with: addon_rvvm
 # )
 # dep_addon_rvvm2 = declare_dependency(
 # 	link_with: addon_rvvm2
@@ -74,10 +79,7 @@ executable(
 	'HaikuGUIBackend.cpp',
 	'Main.cpp',
 	include_directories: [
-		'/boot/system/develop/headers',
-		'/boot/system/develop/headers/private/shared',
-		'/boot/system/develop/headers/private/system',
-		'/boot/system/develop/headers/private/system/arch/x86_64',
+		'external/haiku/headers',
 	],
 	gnu_symbol_visibility: 'hidden',
 	install: true

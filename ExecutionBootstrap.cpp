@@ -155,17 +155,22 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath,
   // Create syscall dispatcher
   Haiku32SyscallDispatcher syscallDispatcher(&addressSpace);
   
+  // STEP 1: Create interpreter after guestContext is created
+  InterpreterX86_32 interpreter(addressSpace, syscallDispatcher);
+  
   // Run the interpreter
   printf("[X86] Starting x86-32 interpreter\n");
   fflush(stdout);
   
-  // Execute using the interpreter in a loop
-  OptimizedX86Executor executor(addressSpace, syscallDispatcher);
+  // STEP 1: Use working InterpreterX86_32 instead of broken OptimizedX86Executor
+  // We already have guestContext defined later (line 131), so use that
+  
+  // Create interpreter after guestContext is created (move the line down)
   uint32 exitCode = 0;
   uint32 instructionCount = 0;
   const uint32 MAX_INSTRUCTIONS = 1000000;  // Safety limit to prevent infinite loops
   
-  printf("[X86] Execution loop starting, max %u instructions\n", MAX_INSTRUCTIONS);
+  printf("[X86] Execution loop starting with InterpreterX86_32, max %u instructions\n", MAX_INSTRUCTIONS);
   fflush(stdout);
   
   // TEMPORARY DEBUG: Just print first few instructions without executing
@@ -190,18 +195,18 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath,
   printf("[X86] Exiting early for debug\n");
   fflush(stdout);
   
-  if (false) {  // Disabled for now
-    while (!guestContext.ShouldExit() && instructionCount < MAX_INSTRUCTIONS) {
-      printf("[X86Loop] Before execute, instruction %u\n", instructionCount);
-      fflush(stdout);
-      
-      status_t status = executor.Execute(guestContext, exitCode);
-      
-      printf("[X86Loop] After execute, status=%d\n", status);
-      fflush(stdout);
+  // STEP 1: Execute using InterpreterX86_32 (working approach)
+  while (!guestContext.ShouldExit() && instructionCount < MAX_INSTRUCTIONS) {
+    printf("[X86Loop] Before execute, instruction %u\n", instructionCount);
+    fflush(stdout);
+    
+    status_t status = interpreter.Run(guestContext);
+    
+    printf("[X86Loop] After execute, status=%d\n", status);
+    fflush(stdout);
     
     if (status != B_OK) {
-      printf("[X86] Executor returned error: %d at instruction %u\n", status, instructionCount);
+      printf("[X86] Interpreter returned error: %d at instruction %u\n", status, instructionCount);
       fflush(stdout);
       break;
     }
@@ -213,8 +218,7 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath,
       printf("[X86] Executed %u instructions\n", instructionCount);
       fflush(stdout);
     }
-    }
-    }  // End of if(false)
+    }  // End of execution loop
     
     if (instructionCount >= MAX_INSTRUCTIONS) {
     printf("[X86] WARNING: Reached instruction limit (%u), possible infinite loop\n", MAX_INSTRUCTIONS);
