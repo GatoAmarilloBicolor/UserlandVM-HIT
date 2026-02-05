@@ -542,7 +542,7 @@ status_t Haiku32SyscallDispatcher::SyscallSeek(uint32 fd, uint32 offset,
 // GUI Syscall Dispatcher
 // ============================================================================
 
-#include "HaikuGUISyscalls.h"
+#include "../gui/HaikuGUISyscalls.h"
 
 status_t
 Haiku32SyscallDispatcher::DispatchGUISyscall(uint32 syscall_num,

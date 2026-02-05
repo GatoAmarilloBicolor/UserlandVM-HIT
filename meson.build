@@ -57,6 +57,7 @@ cpp = meson.get_compiler('cpp')
 
 executable(
 	'UserlandVM',
+	# Core components
 	'Loader.cpp',
 	'Syscalls.cpp',
 	'DynamicLinker.cpp',
@@ -65,28 +66,55 @@ executable(
 	'CommpageManager.cpp',
 	'TLSSetup.cpp',
 	'ExecutionBootstrap.cpp',
+	'ArchitectureFactory.cpp',
+	'Main.cpp',
+	
+	# Architecture-specific components
 	'VirtualCpuX86Native.cpp',
 	'VirtualCpuX86NativeCode.S',
 	'VirtualCpuX86Test.cpp',
 	'X86_32GuestContext.cpp',
-	'Haiku32SyscallDispatcher.cpp',
 	'InterpreterX86_32.cpp',
 	'StubFunctions.cpp',
 	'DebugOutput.cpp',
 	'FPUInstructionHandler.cpp',
 	'FloatingPointUnit.cpp',
 	'OptimizedX86Executor.cpp',
-	'HaikuGUISyscalls.cpp',
-	'HaikuGUIBackend.cpp',
-	'Main.cpp',
+	
+	# Haiku platform components
+	'platform/haiku/system/Haiku32SyscallDispatcher.cpp',
+	'platform/haiku/system/HaikuRuntimeLoader.cpp',
+	'platform/haiku/memory/HaikuAddressSpace.cpp',
+	'platform/haiku/gui/HaikuGUISyscalls.cpp',
+	'platform/haiku/gui/HaikuGUIBackend.cpp',
+	'platform/haiku/gui/HaikuGUIStub.cpp',
 	include_directories: [
+		# Core headers
+		'.',
+		
+		# Haiku external dependencies
 		'external/haiku/headers',
-		'/boot/system/develop/headers',
-		'/boot/system/develop/headers/os',
-		'/boot/system/develop/headers/private',
-		'/boot/system/develop/headers/private/shared',
-		'/boot/system/develop/headers/private/system',
-		'/boot/system/develop/headers/private/system/arch/x86',
+		'external/haiku/headers/os',
+		'external/haiku/headers/os/support',
+		'external/haiku/headers/os/kernel',
+		'external/haiku/headers/private',
+		'external/haiku/headers/private/shared',
+		'external/haiku/headers/private/system',
+		'external/haiku/headers/private/system/arch/x86',
+		
+		# Platform headers
+		'platform',
+		'platform/haiku',
+		'compat',
+		
+		# System Haiku headers (if on Haiku)
+		# Commented out for non-Haiku builds
+		# '/boot/system/develop/headers',
+		# '/boot/system/develop/headers/os',
+		# '/boot/system/develop/headers/private',
+		# '/boot/system/develop/headers/private/shared',
+		# '/boot/system/develop/headers/private/system',
+		# '/boot/system/develop/headers/private/system/arch/x86',
 	],
 	gnu_symbol_visibility: 'hidden',
 	install: true

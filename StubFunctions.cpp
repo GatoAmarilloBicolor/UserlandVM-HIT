@@ -6,7 +6,7 @@
 #include "StubFunctions.h"
 #include "X86_32GuestContext.h"
 #include "AddressSpace.h"
-#include "Haiku32SyscallDispatcher.h"
+#include "platform/haiku/system/Haiku32SyscallDispatcher.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

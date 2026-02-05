@@ -23,7 +23,7 @@
 #include "VirtualCpuX86Native.h"
 #include "X86_32GuestContext.h"
 #include "InterpreterX86_32.h"
-#include "Haiku32SyscallDispatcher.h"
+#include "platform/haiku/system/Haiku32SyscallDispatcher.h"
 
 // Global instance for fixes
 UserlandVMFixes g_fixes;
