@@ -42,18 +42,34 @@ DirectAddressSpace::Init(size_t size)
 	size_t pageSize = B_PAGE_SIZE;
 	size = (size + pageSize - 1) & ~(pageSize - 1);
 
-	// For Sprint 2: Use malloc instead of create_area due to space constraints
-	// Full area-based implementation will be optimized in Sprint 3+
-	fGuestBaseAddress = (addr_t)malloc(size);
-	if (!fGuestBaseAddress) {
-		printf("DirectAddressSpace: Failed to allocate guest memory\n");
-		return B_NO_MEMORY;
+	// Haiku OS Native Memory Management: Use create_area for optimal performance
+	// This allows proper memory protection, caching, and integration with Haiku kernel
+	void *memoryBase = NULL;
+	area_id guestArea = create_area("userlandvm_guest_memory", &memoryBase,
+		B_ANY_ADDRESS, size, B_NO_LOCK, B_READ_AREA | B_WRITE_AREA);
+	
+	if (guestArea < B_OK) {
+		printf("[HAIKU] Failed to create guest memory area: %s\n", strerror(guestArea));
+		return guestArea;
 	}
-
-	fArea = 1;  // Mark as initialized
+	
+	fArea = guestArea;
+	fGuestBaseAddress = (addr_t)memoryBase;
 	fGuestSize = size;
-	printf("DirectAddressSpace: Memory allocated at 0x%lx size %ld bytes\n",
-		fGuestBaseAddress, fGuestSize);
+	
+	printf("[HAIKU] Created guest memory area: id=%ld, base=%p, size=%zu\n", 
+		guestArea, memoryBase, size);
+
+	return B_OK;
+}
+	
+	fArea = guestArea;
+	fGuestBaseAddress = (addr_t)memoryBase;
+	fGuestSize = size;
+	
+	printf("[HAIKU] Created guest memory area: id=%ld, base=%p, size=%zu\n", 
+		guestArea, memoryBase, size);
+	}
 
 	return B_OK;
 }

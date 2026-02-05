@@ -1,0 +1,46 @@
+project(
+	'UserlandVM', 'cpp', 'c',
+   version : '1.0.0',
+   default_options : ['warning_level=3', 'cpp_std=c++20', 'optimization=3']
+ )
+
+# Core Haiku OS headers
+haiku_dep = dependency(
+	include_directories: ['external/haiku/headers'],
+	compile_args: [
+		'-D__HAIKU__', 
+		'-DHAIKU_TARGET_PLATFORM=HAIKU_PLATFORM_HAIKU',
+		'-fno-exceptions',
+		'-fno-rtti'
+	],
+)
+
+# Compiler setup
+cpp = meson.get_compiler('cpp')
+
+# Source files
+sources = [
+	'InterpreterX86_32.cpp',
+	'ExecutionBootstrap.cpp',
+	'HaikuNativeGUIBackend.cpp',
+	'HaikuThreading.cpp',
+	'HaikuAddressSpace.cpp',
+	'Haiku32SyscallDispatcher.cpp',
+	'GuestElfLoader.cpp',
+	'Syscalls.cpp',
+	'Loader.cpp',
+	'DynamicLinker.cpp',
+	'RelocationProcessor.cpp',
+	'RuntimeLoader.cpp',
+	'Main.cpp',
+]
+
+# Haiku-specific executable
+executable(
+	'UserlandVM-Haiku',
+	sources,
+	dependencies: [haiku_dep],
+	install: true,
+	install_dir: 'bin',
+	gui_app: true,
+)
