@@ -35,11 +35,11 @@ public:
     fUseDirectMemory = true;
   }
 
-  virtual status_t Read(uint32_t guestAddress, void *buffer,
+  virtual status_t Read(uintptr_t guestAddress, void *buffer,
                         size_t size) override;
-  virtual status_t Write(uint32_t guestAddress, const void *buffer,
+  virtual status_t Write(uintptr_t guestAddress, const void *buffer,
                          size_t size) override;
-  virtual status_t ReadString(uint32_t guestAddress, char *buffer,
+  virtual status_t ReadString(uintptr_t guestAddress, char *buffer,
                               size_t bufferSize) override;
 
   // Devuelve la dirección base del espacio de memoria del invitado en el host.
@@ -48,17 +48,17 @@ public:
 
   // Virtual address mapping: Maps guest virtual addresses to offsets
   // Standard x86-32 binaries use 0x08048000 as code base
-  virtual status_t RegisterMapping(uint32_t guest_vaddr, uint32_t guest_offset,
+  virtual status_t RegisterMapping(uintptr_t guest_vaddr, uintptr_t guest_offset,
                                    size_t size) override;
-  virtual uint32_t TranslateAddress(uint32_t guest_vaddr) const override;
+  virtual uintptr_t TranslateAddress(uintptr_t guest_vaddr) const override;
 
   // TLS area setup - Maps TLS memory region
-  virtual status_t MapTLSArea(uint32_t guest_vaddr, size_t size) override;
+  virtual status_t MapTLSArea(uintptr_t guest_vaddr, size_t size) override;
 
   // Direct memory read/write operations
-  virtual status_t ReadMemory(uint32_t guest_vaddr, void *data,
+  virtual status_t ReadMemory(uintptr_t guest_vaddr, void *data,
                               size_t size) override;
-  virtual status_t WriteMemory(uint32_t guest_vaddr, const void *data,
+  virtual status_t WriteMemory(uintptr_t guest_vaddr, const void *data,
                                size_t size) override;
 
 private:
@@ -69,9 +69,9 @@ private:
 
   // Simple address translation table
   struct AddressMap {
-    uint32_t vaddr_start;
-    uint32_t vaddr_end;
-    uint32_t offset;
+    uintptr_t vaddr_start;
+    uintptr_t vaddr_end;
+    uintptr_t offset;
   };
 
   static const int MAX_MAPPINGS = 16;

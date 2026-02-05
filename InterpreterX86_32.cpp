@@ -161,12 +161,16 @@ status_t InterpreterX86_32::Run(GuestContext &context) {
   fflush(stdout);
 
   while (instr_count < MAX_INSTRUCTIONS) {
-    printf("[INTERPRETER::Loop] instr_count=%u, calling ExecuteInstruction\n", instr_count);
+    printf("[INTERPRETER::Loop] instr_count=%u, EIP64=0x%lx, calling ExecuteInstruction\n", instr_count, x86_context.GetEIP64());
     fflush(stdout);
     uint32 bytes_consumed = 0;
     X86_32Registers &regs = x86_context.Registers();
     uint32 eip_before = regs.eip;
+    printf("[INTERPRETER::Loop] About to call ExecuteInstruction\n");
+    fflush(stdout);
     status_t status = ExecuteInstruction(context, bytes_consumed);
+    printf("[INTERPRETER::Loop] After ExecuteInstruction, status=%d, bytes=%u\n", status, bytes_consumed);
+    fflush(stdout);
 
     // DEBUG: Print EIP changes
     if (instr_count > 0 && instr_count % 5 == 0) {
@@ -207,11 +211,16 @@ status_t InterpreterX86_32::Run(GuestContext &context) {
       }
     } else {
       // Normal instruction, increment EIP by instruction size
-      regs.eip += bytes_consumed;
-      // Also update the 64-bit EIP if in direct memory mode
+      // Always update the 64-bit EIP alongside the 32-bit register
       uintptr_t eip64 = x86_context.GetEIP64();
       if (eip64 != 0) {
+        // We have a 64-bit EIP, update it
         x86_context.SetEIP64(eip64 + bytes_consumed);
+        // Also update the 32-bit register for consistency
+        regs.eip += bytes_consumed;
+      } else {
+        // No 64-bit EIP, just update 32-bit
+        regs.eip += bytes_consumed;
       }
     }
     instr_count++;
@@ -240,8 +249,13 @@ status_t InterpreterX86_32::ExecuteInstruction(GuestContext &context,
   // In direct memory mode on 64-bit host, we need to use the 64-bit EIP to ensure
   // we read from the correct address. DirectAddressSpace will handle the base offset.
   uintptr_t eip_addr = x86_context.GetEIP64();
+  printf("[DEBUG] ExecuteInstruction: EIP64=0x%lx, EIP32=0x%08x\n", eip_addr, regs.eip);
+  fflush(stdout);
+  
   if (eip_addr == 0) {
     // Fallback to 32-bit EIP only if 64-bit not available
+    printf("[DEBUG] EIP64 is 0, using 32-bit EIP\n");
+    fflush(stdout);
     eip_addr = (uintptr_t)regs.eip;
   }
 
@@ -252,42 +266,16 @@ status_t InterpreterX86_32::ExecuteInstruction(GuestContext &context,
     return (status_t)0x80000001;
   }
 
-  // DEBUG: First few instructions
-  static int instr_count_debug = 0;
-  if (instr_count_debug < 3) {
-    printf("[DEBUG] Attempting to read from EIP64=0x%lx (32-bit: 0x%x)\n", eip_addr, (uint32)eip_addr);
-    fflush(stdout);
-    instr_count_debug++;
-  }
-
-  // Read instruction from EIP
-  // In direct memory mode on 64-bit hosts, we need to use the full 64-bit address
-  // since the AddressSpace::Read() interface only accepts 32-bit addresses
-  status_t status;
-  
-  if (eip_addr > 0xFFFFFFFFUL) {
-    // 64-bit address - try direct memory access
-    printf("[INTERPRETER] Direct memory access for 64-bit EIP: 0x%lx\n", eip_addr);
-    fflush(stdout);
-    uint8_t* code_ptr = (uint8_t*)eip_addr;
-    memcpy(instr_buffer, code_ptr, sizeof(instr_buffer));
-    status = B_OK;
-  } else {
-    // Fits in 32 bits, use normal address space interface
-    status = fAddressSpace.Read((uint32)eip_addr, instr_buffer, sizeof(instr_buffer));
-    if (status != B_OK) {
-      printf("[INTERPRETER] Failed to read memory at vaddr=0x%08x\n", regs.eip);
-      printf("[INTERPRETER] Current state:\n");
-      printf("  EAX=0x%08x EBX=0x%08x ECX=0x%08x EDX=0x%08x\n", regs.eax,
-             regs.ebx, regs.ecx, regs.edx);
-      printf("  ESI=0x%08x EDI=0x%08x EBP=0x%08x ESP=0x%08x\n", regs.esi,
-             regs.edi, regs.ebp, regs.esp);
-      return status;
-    }
-  }
+  // Read instruction from EIP using the full 64-bit address if available
+  status_t status = fAddressSpace.Read(eip_addr, instr_buffer, sizeof(instr_buffer));
   
   if (status != B_OK) {
-    printf("[INTERPRETER] Failed to read instruction at EIP=0x%lx\n", eip_addr);
+    printf("[INTERPRETER] Failed to read memory at EIP=0x%lx\n", eip_addr);
+    printf("[INTERPRETER] Current state:\n");
+    printf("  EAX=0x%08x EBX=0x%08x ECX=0x%08x EDX=0x%08x\n", regs.eax,
+           regs.ebx, regs.ecx, regs.edx);
+    printf("  ESI=0x%08x EDI=0x%08x EBP=0x%08x ESP=0x%08x\n", regs.esi,
+           regs.edi, regs.ebp, regs.esp);
     return status;
   }
 
