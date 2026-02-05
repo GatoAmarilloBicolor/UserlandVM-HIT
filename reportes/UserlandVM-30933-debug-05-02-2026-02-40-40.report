@@ -1,0 +1,242 @@
+Debug information for team /boot/home/src/UserlandVM-HIT/builddir/UserlandVM (30933):
+CPU(s): 2x AMD E-Series
+Memory: 3,73 GiB total, 3,34 GiB used
+Haiku revision: hrev59344 Jan 27 2026 07:02:22 (x86_64)
+
+Active Threads:
+	thread 30934: team 30933 debug task 
+	thread 30933: UserlandVM (main)
+		state: Exception (Segment violation)
+
+		Frame		IP			Function Name
+		-----------------------------------------------
+		0x7f63b79c1160	0x217114c1e00	memcpy + 0x60 
+			Disassembly:
+				memcpy:
+				0x00000217114c1da0:               55  push %rbp
+				0x00000217114c1da1:           4889d1  mov %rdx, %rcx
+				0x00000217114c1da4:           4889e5  mov %rsp, %rbp
+				0x00000217114c1da7:             4156  push %r14
+				0x00000217114c1da9:             4155  push %r13
+				0x00000217114c1dab:           4989fd  mov %rdi, %r13
+				0x00000217114c1dae:             4154  push %r12
+				0x00000217114c1db0:           4989f4  mov %rsi, %r12
+				0x00000217114c1db3:         4883ec18  sub $0x18, %rsp
+				0x00000217114c1db7:         4883fa10  cmp $0x10, %rdx
+				0x00000217114c1dbb:             7623  jbe 0x217114c1de0
+				0x00000217114c1dbd:   4881faff070000  cmp $0x7ff, %rdx
+				0x00000217114c1dc4:             765a  jbe 0x217114c1e20
+				0x00000217114c1dc6:             f3a4  rep movsb
+				0x00000217114c1dc8:         4883c418  add $0x18, %rsp
+				0x00000217114c1dcc:           4c89e8  mov %r13, %rax
+				0x00000217114c1dcf:             415c  pop %r12
+				0x00000217114c1dd1:             415d  pop %r13
+				0x00000217114c1dd3:             415e  pop %r14
+				0x00000217114c1dd5:               5d  pop %rbp
+				0x00000217114c1dd6:               c3  ret
+				0x00000217114c1dd7: 660f1f8400000000  nopw %ax, (%rax,%rax,1)
+				0x00000217114c1de0:         4883fa07  cmp $0x7, %rdx
+				0x00000217114c1de4:             771a  jnbe 0x217114c1e00
+				0x00000217114c1de6:   488d0573dc0400  lea 0x2171150fa60, %rax
+				0x00000217114c1ded:           ff14d0  callq (%rax,%rdx,8)
+				0x00000217114c1df0:         4883c418  add $0x18, %rsp
+				0x00000217114c1df4:           4c89e8  mov %r13, %rax
+				0x00000217114c1df7:             415c  pop %r12
+				0x00000217114c1df9:             415d  pop %r13
+				0x00000217114c1dfb:             415e  pop %r14
+				0x00000217114c1dfd:               5d  pop %rbp
+				0x00000217114c1dfe:               c3  ret
+				0x00000217114c1dff:               90  nop
+				0x00000217114c1e00:           488b06  movq (%rsi), %rax <--
+
+			Frame memory:
+				[0x7f63b79c1120]  .VQ.............   a0 56 51 11 17 02 00 00 00 00 00 00 00 00 00 00
+				[0x7f63b79c1130]  P...c...........   50 11 9c b7 63 7f 00 00 03 00 00 00 00 00 00 00
+				[0x7f63b79c1140]  ................   01 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+				[0x7f63b79c1150]  ....c...../`l...   b0 11 9c b7 63 7f 00 00 db a2 2f 60 6c 00 00 00
+		0x7f63b79c11c0	0x6c602fa2d6	DirectAddressSpace::Read(uintptr_t, void*, size_t) + 0xee (/boot/home/src/UserlandVM-HIT/builddir/DirectAddressSpace.cpp:59)
+			Variables:
+			this: 0x7f63b79c1800 {
+				fArea: -1
+				fGuestBaseAddress: 0
+				fGuestSize: 0
+				fUseDirectMemory: true
+				MAX_MAPPINGS: Invalid Argument
+				fMappings: Unavailable
+				fMappingCount: 0
+			}
+			guestAddress: 3669507584
+			buffer: 0xf89ab9f070 {
+				*buffer: Unavailable
+			}
+			size: 15
+			call_count: 2
+			offset: 140066258948544
+			source: 0x217115156a0 {
+				*source: 132
+			}
+			hostAddr: 3669507584
+			source: 0xdab83e00 {
+				*source: Bad address
+			}
+
+		0x7f63b79c11e0	0x6c6030e7bd	OptimizedX86Executor::LoadInstr(unsigned int, unsigned char*, unsigned int) + 0x3b 
+		0x7f63b79c1240	0x6c6030e853	OptimizedX86Executor::Execute(X86_32GuestContext&, unsigned int&) + 0x91 
+		0x7f63b79c1690	0x6c602ff6dd	InterpreterX86_32::ExecuteInstruction(GuestContext&, unsigned int&) + 0x37f 
+		0x7f63b79c1700	0x6c602ff0e0	InterpreterX86_32::Run(GuestContext&) + 0x164 
+		0x7f63b79c1a50	0x6c602fb82c	ExecutionBootstrap::ExecuteProgram(const char*, char**, char**) + 0x81e (/boot/home/src/UserlandVM-HIT/builddir/ExecutionBootstrap.cpp:-1)
+			Variables:
+			this: 0x7f63b79c1a7f {
+				DEFAULT_STACK_SIZE: Invalid Argument
+			}
+			programPath: /boot/home/src/UserlandVM-HIT/sysroot/haiku32/bin/ls
+			argv: 0x7f63b79c3650 {
+				*argv: /boot/home/src/UserlandVM-HIT/sysroot/haiku32/bin/ls
+			}
+			env: 0x7f63b79c3668 {
+				*env: WINDOWID=917018027280
+			}
+			image {
+			}
+			ctx {
+				image: 0xf89ab9e0c0
+				stackBase: 0xf89ac14000
+				stackSize: 1048576
+				entryPoint: 1068821396992
+				stackPointer: 2597404668
+				linker: 0xf89ab9b000
+			}
+			fullEntryPoint: 0xf8dab83e00 {
+				*fullEntryPoint: Unavailable
+			}
+			addressSpace {
+				fArea: -1
+				fGuestBaseAddress: 0
+				fGuestSize: 0
+				fUseDirectMemory: true
+				MAX_MAPPINGS: Invalid Argument
+				fMappings: Unavailable
+				fMappingCount: 0
+			}
+			guestContext
+			regs: 0x7f63b79c17b8 {
+				eip: 3669507584
+				esp: 2597404668
+				ebp: 2597404668
+				eax: 0
+				ebx: 0
+				ecx: 0
+				edx: 0
+				esi: 0
+				edi: 0
+				eflags: 514
+			}
+			syscallDispatcher
+			interpreter
+			exitCode: 0
+			instructionCount: 0
+			MAX_INSTRUCTIONS: 1000000
+			status: 535
+
+		0x7f63b79c1fa0	0x6c60315854	main + 0x1e0 
+		0x7f63b79c1fd0	0x6c602ec2f9	_start + 0x39 
+		0x7f63b79c2010	0x165a4c1d433	runtime_loader + 0x113 
+		00000000	0x7fffffdf7258	commpage_thread_exit + 0 
+
+		Registers:
+			  rip:	0x00000217114c1e00
+			  rsp:	0x00007f63b79c1120
+			  rbp:	0x00007f63b79c1150
+			  rax:	0x000000f89ab9f070
+			  rbx:	0x000000f89ab9b000
+			  rcx:	0x000000000000000f
+			  rdx:	0x000000000000000f
+			  rsi:	0x00000000dab83e00
+			  rdi:	0x000000f89ab9f070
+			   r8:	0x0000000000000000
+			   r9:	0x0000000000000001
+			  r10:	0x000000000000004f
+			  r11:	0x0000000000000202
+			  r12:	0x00000000dab83e00
+			  r13:	0x000000f89ab9f070
+			  r14:	0x0000000000000000
+			  r15:	0x0000000000000000
+			   cs:	0x002b
+			   ds:	0x0000
+			   es:	0x0000
+			   fs:	0x0000
+			   gs:	0x0000
+			   ss:	0x0023
+			  st0:	0
+			  st1:	0
+			  st2:	0
+			  st3:	0
+			  st4:	0
+			  st5:	0
+			  st6:	0
+			  st7:	0
+			  mm0:	{0, 0, 0, 0}
+			  mm1:	{0, 0, 0, 0}
+			  mm2:	{0, 0, 0, 0}
+			  mm3:	{0, 0, 0, 0}
+			  mm4:	{0, 0, 0, 0}
+			  mm5:	{0, 0, 0, 0}
+			  mm6:	{0, 0, 0, 0}
+			  mm7:	{0, 0, 0, 0}
+			 xmm0:	{0x8000, 0x9ac0, 0xf8, 0, 0, 0, 0, 0}
+			 xmm1:	{0x6000, 0x9ac0, 0xf8, 0, 0x6000, 0x9ac0, 0xf8, 0}
+			 xmm2:	{0, 0, 0, 0, 0, 0, 0, 0}
+			 xmm3:	{0, 0, 0, 0, 0, 0, 0, 0}
+			 xmm4:	{0, 0, 0, 0, 0, 0, 0, 0}
+			 xmm5:	{0, 0, 0, 0, 0, 0, 0, 0}
+			 xmm6:	{0, 0, 0, 0, 0, 0, 0, 0}
+			 xmm7:	{0, 0, 0, 0, 0, 0, 0, 0}
+			 xmm8:	{0, 0, 0, 0, 0, 0, 0, 0}
+			 xmm9:	{0, 0, 0, 0, 0, 0, 0, 0}
+			xmm10:	{0, 0, 0, 0, 0, 0, 0, 0}
+			xmm11:	{0, 0, 0, 0, 0, 0, 0, 0}
+			xmm12:	{0, 0, 0, 0, 0, 0, 0, 0}
+			xmm13:	{0, 0, 0, 0, 0, 0, 0, 0}
+			xmm14:	{0, 0, 0, 0, 0, 0, 0, 0}
+			xmm15:	{0, 0, 0, 0, 0, 0, 0, 0}
+
+Loaded Images:
+	ID		Text Base	Text End	Data Base	Data End	Type	Name
+	--------------------------------------------------------------------------------
+	600489	0x6c602d9000	0x6c6032b000	0x6c6032b000	0x6c60341000	app    	/boot/home/src/UserlandVM-HIT/builddir/UserlandVM
+	600491	0x10e96d53000	0x10e96d72000	0x10e96d72000	0x10e96d73000	lib    	/boot/system/lib/libgcc_s.so.1
+	600490	0x142d8df8000	0x142d902b000	0x142d902b000	0x142d9041000	lib    	/boot/system/lib/libstdc++.so.6.0.32
+	600488	0x165a4c0d000	0x165a4c2c000	0x165a4c2c000	0x165a4c2d000	lib    	/boot/system/runtime_loader
+	600492	0x21711402000	0x2171150c000	0x2171150c000	0x21711523000	lib    	/boot/system/lib/libroot.so
+	600487	0x7fffffdf7000	0x7fffffdff000	0x00000000	0x00000000	system 	commpage
+
+Areas:
+	ID		Base		End			Size (KiB)	Protection	Locking			Name
+	--------------------------------------------------------------------------------
+	2807185	0x6c602d9000	0x6c6032b000	       328	r-x        	none          	UserlandVM_seg0rx
+	2807186	0x6c6032b000	0x6c60341000	        88	rw-        	none          	UserlandVM_seg1rw
+	2807183	0x7850a58000	0x7850a78000	       128	rw-        	none          	rld heap
+	2807184	0xc9fa154000	0xc9fa155000	         4	rw-S       	none          	_rld_debug_
+	2807195	0xf89ab50000	0xf89ad14000	      1808	rw-        	none          	heap area
+	2807196	0xf8dab50000	0xf8dab7d000	       180	rwx        	none          	image
+	2807197	0xf8dab7d000	0xf8dabaa000	       180	rwx        	none          	image
+	2807198	0xf8dabaa000	0xf8daca3000	       996	rwx        	none          	image
+	2807190	0x10e96d53000	0x10e96d72000	       124	r-x        	none          	libgcc_s.so.1_seg0rx
+	2807191	0x10e96d72000	0x10e96d73000	         4	rw-        	none          	libgcc_s.so.1_seg1rw
+	2807187	0x142d8df8000	0x142d902b000	      2252	r-x        	none          	libstdc++.so.6.0.32_seg0rx
+	2807188	0x142d902b000	0x142d9039000	        56	rw-        	none          	libstdc++.so.6.0.32_seg1rw
+	2807189	0x142d9039000	0x142d9041000	        32	rw-        	none          	libstdc++.so.6.0.32_seg2rw
+	2807181	0x165a4c0d000	0x165a4c2c000	       124	r-x        	none          	runtime_loader_seg0rx
+	2807182	0x165a4c2c000	0x165a4c2d000	         4	rw-        	none          	runtime_loader_seg1rw
+	2807192	0x21711402000	0x2171150c000	      1064	r-x        	none          	libroot.so_seg0rx
+	2807193	0x2171150c000	0x2171151a000	        56	rw-        	none          	libroot.so_seg1rw
+	2807194	0x2171151a000	0x21711523000	        36	rw-        	none          	libroot.so_seg2rw
+	2807179	0x7f63b69bf000	0x7f63b79c5000	     16408	rw-s       	none          	UserlandVM_30933_stack
+	2807178	0x7fd1d0893000	0x7fd1d0897000	        16	rw-k       	full          	user area
+	2807180	0x7fffffdf7000	0x7fffffdff000	        32	r-xSk      	full          	commpage
+
+Protection Flags: r - read, w - write, x - execute, s - stack, o - overcommit, c - cloneable, S - shared, k - kernel
+
+Semaphores:
+	ID		Count	Last Holder	Name
+	------------------------------------------------------------

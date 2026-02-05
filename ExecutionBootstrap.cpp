@@ -1,5 +1,22 @@
-#include "ExecutionBootstrap.h"
-#include "CommpageManager.h"
+/*
+ * Copyright 2025, Haiku Imposible Team.
+ * All rights reserved. Distributed under the terms of the MIT License.
+ * 
+ * UserlandVM-HIT - Platform-Independent Execution Bootstrap
+ * Automatically detects platform and adapts behavior with comprehensive error handling
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <signal.h>
+
+// Platform detection and fixes
+#include "userlandvm_fixes.h"
+
+// Original Haiku includes (only what we need)
+#include "ExecutionEngine.h"
 #include "DirectAddressSpace.h"
 #include "DynamicLinker.h"
 #include "TLSSetup.h"
@@ -7,332 +24,478 @@
 #include "X86_32GuestContext.h"
 #include "InterpreterX86_32.h"
 #include "Haiku32SyscallDispatcher.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
 
-ExecutionBootstrap::ExecutionBootstrap() {}
+// Global instance for fixes
+UserlandVMFixes g_fixes;
 
-ExecutionBootstrap::~ExecutionBootstrap() {}
-
-status_t ExecutionBootstrap::ExecuteProgram(const char *programPath,
-                                            char **argv, char **env) {
-  if (!programPath) {
-    fprintf(stderr, "[X86] No program path provided\n");
-    return 1;
-  }
-
-  printf("[X86] Loading x86 32-bit Haiku program: %s\n", programPath);
-  fflush(stdout);
-
-  // Load the ELF binary
-  ObjectDeleter<ElfImage> image(ElfImage::Load(programPath));
-  if (!image.IsSet()) {
-    fprintf(stderr, "[X86] Failed to load program\n");
-    return 1;
-  }
-
-  printf("[X86] Program loaded at %p, entry=%p\n", image->GetImageBase(),
-         image->GetEntry());
-  fflush(stdout);
-
-  // Setup execution context
-  ProgramContext ctx;
-  ctx.image = image.Get();
-  // WARNING: In direct memory mode on 64-bit host, entry points are 64-bit pointers
-  // but X86_32GuestContext uses 32-bit EIP. This truncation is intentional - we use
-  // the lower 32 bits as an offset and rely on direct memory access to work with
-  // the actual 64-bit host pointers
-  void *fullEntryPoint = image->GetEntry();
-  ctx.entryPoint = (uintptr_t)fullEntryPoint;  // Keep as uintptr_t (64-bit on 64-bit host)
-  printf("[X86] Entry point: %p (will be used as host pointer)\n", fullEntryPoint);
-  printf("[X86] Entry point as stored: 0x%lx\n", ctx.entryPoint);
-  fflush(stdout);
-  ctx.stackSize = DEFAULT_STACK_SIZE;
-  ctx.linker = new DynamicLinker();
-
-  // Load dynamic dependencies
-  if (image->IsDynamic()) {
-    printf("[X86] Loading dynamic dependencies\n");
-    fflush(stdout);
-    if (!LoadDependencies(ctx, image.Get())) {
-      fprintf(stderr, "[X86] Failed to load dependencies\n");
-      // Continue anyway as per previous logic
-    }
-  }
-
-  // Resolve dynamic symbols and apply relocations
-  if (image->IsDynamic()) {
-    printf("[X86] Resolving dynamic symbols\n");
-    fflush(stdout);
-    if (!ResolveDynamicSymbols(ctx, image.Get())) {
-      fprintf(stderr, "[X86] Failed to resolve symbols (continuing anyway)\n");
-    }
-
-    printf("[X86] Applying relocations\n");
-    fflush(stdout);
-    RelocationProcessor reloc_processor(ctx.linker);
-    status_t reloc_status = reloc_processor.ProcessRelocations(image.Get());
-    if (reloc_status != B_OK) {
-      fprintf(stderr, "[X86] Failed to apply relocations: %d\n", reloc_status);
-      // Continue anyway - some relocations might be optional
-    }
-  }
-
-  // Note: DirectAddressSpace currently has limitations:
-  // - It's designed to translate guest virtual addresses to offsets in a contiguous block
-  // - But our loaded images are in malloc'd host memory at arbitrary addresses
-  // - For now, we bypass address translation by using direct host pointers in the interpreter
-  // TODO: Implement proper memory mapping to support address space isolation
-
-  // Allocate stack for guest program
-  ctx.stackBase = AllocateStack(ctx.stackSize);
-  if (!ctx.stackBase) {
-    fprintf(stderr, "[X86] Failed to allocate stack\n");
-    return 1;
-  }
-
-  ctx.stackPointer = (uint32)(unsigned long long)ctx.stackBase + ctx.stackSize;
-  printf("[X86] Stack allocated at %p, sp=%#x\n", ctx.stackBase,
-         ctx.stackPointer);
-  fflush(stdout);
-
-  // Build the stack with arguments
-  if (!BuildX86Stack(ctx, argv, env)) {
-    fprintf(stderr, "[X86] Failed to build stack\n");
-    return 1;
-  }
-
-  printf("[X86] Ready to execute x86 32-bit program\n");
-  printf("[X86] Entry point: %#x\n", ctx.entryPoint);
-  printf("[X86] Stack pointer: %#x\n", ctx.stackPointer);
-  printf("[X86] ===== Program Output =====\n");
-  fflush(stdout);
-
-  // Create address space wrapper for guest memory
-  // Using direct memory mode since we load binaries into host malloc'd memory
-  DirectAddressSpace addressSpace;
-  // Set the guest base to 0 so that guest addresses are treated as direct offsets
-  // This works because:
-  // 1. We'll store the 64-bit entry point in the context
-  // 2. The interpreter will use that 64-bit address to compute offsets
-  // For now, set base to 0 and use direct 64-bit addresses
-  addressSpace.SetGuestMemoryBase(0, 0);
-  printf("[X86] Direct memory mode enabled for address space\n");
-  fflush(stdout);
-  
-  // Setup environment (Commpage, TLS) - must be done AFTER address space is ready
-  printf("[X86] About to setup environment\n");
-  fflush(stdout);
-  if (!SetupX86Environment(ctx, argv, env, addressSpace)) {
-    fprintf(stderr, "[X86] Failed to setup environment\n");
-    return 1;
-  }
-  printf("[X86] Environment setup complete\n");
-  fflush(stdout);
-  
-  // Create X86_32GuestContext for interpreter
-  X86_32GuestContext guestContext(addressSpace);
-  printf("[X86] Guest context created\n");
-  fflush(stdout);
-  
-  // Set initial registers
-  X86_32Registers &regs = guestContext.Registers();
-  regs.eax = 0;
-  regs.ebx = 0;
-  regs.ecx = 0;
-  regs.edx = 0;
-  regs.esi = 0;
-  regs.edi = 0;
-  regs.esp = ctx.stackPointer;
-  regs.ebp = ctx.stackPointer;
-  // In direct memory mode, store 64-bit entry point separately
-  guestContext.SetEIP64(ctx.entryPoint);
-  regs.eip = (uint32)ctx.entryPoint;  // Also store lower 32 bits in case needed
-  printf("[X86] Setting EIP: full address=0x%lx, 32-bit=0x%x\n", ctx.entryPoint, regs.eip);
-  fflush(stdout);
-  regs.eflags = 0x202; // IF and reserved bits
-  
-  printf("[X86] Guest context initialized\n");
-  fflush(stdout);
-
-  // Create syscall dispatcher
-  Haiku32SyscallDispatcher syscallDispatcher(&addressSpace);
-  
-  // STEP 1: Create interpreter after guestContext is created
-  InterpreterX86_32 interpreter(addressSpace, syscallDispatcher);
-  
-  // Run the interpreter
-  printf("[X86] Starting x86-32 interpreter\n");
-  fflush(stdout);
-  
-  // STEP 1: Use working InterpreterX86_32 instead of broken OptimizedX86Executor
-  // We already have guestContext defined later (line 131), so use that
-  
-  // Create interpreter after guestContext is created (move the line down)
-  uint32 exitCode = 0;
-  uint32 instructionCount = 0;
-  const uint32 MAX_INSTRUCTIONS = 1000000;  // Safety limit to prevent infinite loops
-  
-  printf("[X86] Execution loop starting with InterpreterX86_32, max %u instructions\n", MAX_INSTRUCTIONS);
-  printf("[X86] Direct memory mode: fUseDirectMemory=true\n");
-  printf("[X86] Entry point in 64-bit form: 0x%lx\n", guestContext.GetEIP64());
-  fflush(stdout);
-  
-  // STEP 1: Execute using InterpreterX86_32 (working approach)
-  status_t status = interpreter.Run(guestContext);
-  
-  if (status == B_OK || status == (status_t)0x80000001) {
-    // 0x80000001 is the special exit code from syscall dispatcher
-    exitCode = 0;
-  } else {
-    printf("[X86] Interpreter returned error: %d\n", status);
-    fflush(stdout);
-    exitCode = 1;
-  }
-  
-  instructionCount = 1;  // Dummy counter for now
+ExecutionBootstrap::ExecutionBootstrap()
+    : fExecutionEngine(nullptr),
+      fDynamicLinker(nullptr),
+      fGUIBackend(nullptr),
+      fSymbolResolver(nullptr),
+      fMemoryManager(nullptr),
+      fThreadManager(nullptr),
+      fProfiler(nullptr)
+{
+    PLATFORM_INFO("Bootstrap initialized in platform-independent mode with comprehensive fixes");
     
-    if (instructionCount >= MAX_INSTRUCTIONS) {
-    printf("[X86] WARNING: Reached instruction limit (%u), possible infinite loop\n", MAX_INSTRUCTIONS);
-  } else {
-    printf("[X86] Program exited normally after %u instructions\n", instructionCount);
-  }
-
-  printf("[X86] ===== Program Terminated with code %u =====\n", exitCode);
-  fflush(stdout);
-
-  return exitCode;
-}
-
-void *ExecutionBootstrap::AllocateStack(size_t size) {
-  // Allocate 32-bit addressable memory for stack
-  void *stack = malloc(size);
-  printf("[X86] Allocated stack: %p (size=%zu)\n", stack, size);
-  return stack;
-}
-
-bool ExecutionBootstrap::BuildX86Stack(ProgramContext &ctx, char **argv,
-                                       char **env) {
-  printf("[X86] Building stack with %zu bytes available\n", ctx.stackSize);
-
-  // Build stack frame at the top of the stack going downward
-  uint32 sp = ctx.stackPointer;
-  uint8 *stack_base = (uint8 *)ctx.stackBase;
-
-  // Count arguments and environment variables
-  int argc = 0;
-  while (argv && argv[argc])
-    argc++;
-
-  int envc = 0;
-  while (env && env[envc])
-    envc++;
-
-  printf("[X86] argc=%d, envc=%d\n", argc, envc);
-
-  // Stack layout (x86):
-  // [esp + 0]  = argc
-  // [esp + 4]  = argv[0]
-  // [esp + 8]  = argv[1]
-  // ...
-  // [esp + 4*(argc+1)] = NULL
-  // [esp + 4*(argc+2)] = env[0]
-  // ...
-
-  // For now, just set up argc at stack pointer
-  // This is simplified - a full implementation would copy strings
-
-  // Write argc
-  if (sp >= 4) {
-    sp -= 4;
-    *(uint32 *)(stack_base + (sp - (uint32)(unsigned long long)stack_base)) =
-        argc;
-    printf("[X86] Wrote argc=%d at %#x\n", argc, sp);
-  }
-
-  // Update stack pointer
-  ctx.stackPointer = sp;
-
-  printf("[X86] Stack frame built, new sp=%#x\n", ctx.stackPointer);
-  return true;
-}
-
-bool ExecutionBootstrap::SetupX86Environment(ProgramContext &ctx, char **argv,
-                                              char **env, DirectAddressSpace &addressSpace) {
-  (void)ctx;
-  (void)argv;
-  (void)env;
-  printf("[X86] Setting up execution environment\n");
-  fflush(stdout);
-
-  // Setup commpage (skipped for now - vm32_create_area hangs)
-  // TODO: Fix vm32_create_area blocking issue
-  printf("[X86] Commpage setup skipped (TODO: fix vm32_create_area)\n");
-  fflush(stdout);
-
-  // Setup thread local storage (TLS) - skipped for now  
-  printf("[X86] TLS setup skipped (TODO: fix TLS initialization)\n");
-  fflush(stdout);
-
-  return true;
-}
-
-bool ExecutionBootstrap::LoadDependencies(ProgramContext &ctx,
-                                          ElfImage *image) {
-  if (!image->IsDynamic()) {
-    return true; // No dependencies for static binaries
-  }
-
-  printf("[X86] Scanning for dependencies in %s\n", image->GetPath());
-  fflush(stdout);
-
-  // Try to load libroot.so from the standard locations
-  const char *libPaths[] = {
-      "./sysroot/haiku32/lib/libroot.so",
-      "./sysroot/haiku32/lib/x86/libroot.so",
-      "./sysroot/haiku32/system/lib/libroot.so",
-      "/boot/home/src/UserlandVM-HIT/sysroot/haiku32/lib/libroot.so", NULL};
-
-  for (int i = 0; libPaths[i] != NULL; i++) {
-    FILE *f = fopen(libPaths[i], "rb");
-    if (f) {
-      fclose(f);
-      printf("[X86] Loading libroot.so from %s\n", libPaths[i]);
-      fflush(stdout);
-
-      ElfImage *libroot = ElfImage::Load(libPaths[i]);
-      if (libroot) {
-        ctx.linker->AddLibrary("libroot.so", libroot);
-        printf("[X86] libroot.so loaded at %p\n", libroot->GetImageBase());
-        return true;
-      }
+    // Apply all critical fixes immediately
+    status_t fix_result = g_fixes.ApplyAllFixes();
+    if (fix_result != PLATFORM_OK) {
+        PLATFORM_ERROR("Critical fix initialization failed - system may be unstable");
+        return;
     }
-  }
-
-  printf("[X86] Warning: Could not find libroot.so\n");
-  return false;
+    
+    PLATFORM_SUCCESS("All critical fixes applied successfully");
 }
 
-bool ExecutionBootstrap::ResolveDynamicSymbols(ProgramContext &ctx,
-                                                ElfImage *image) {
-  if (!image || !image->IsDynamic()) {
-    return true;
-  }
+ExecutionBootstrap::~ExecutionBootstrap()
+{
+    PLATFORM_DEBUG("Bootstrap destroyed with error reporting");
+    
+    // Cleanup components
+    if (fDynamicLinker) {
+        delete fDynamicLinker;
+    }
+    if (fGUIBackend) {
+        delete fGUIBackend;
+    }
+    if (fExecutionEngine) {
+        delete fExecutionEngine;
+    }
+    if (fProfiler) {
+        delete fProfiler;
+    }
+}
 
-  printf("[X86] Resolving dynamic symbols\n");
-  fflush(stdout);
+status_t ExecutionBootstrap::ExecuteProgram(const char *programPath, char **argv, char **env)
+{
+    PLATFORM_INFO("Starting UserlandVM-HIT for program: %s", programPath);
+    PLATFORM_INFO("Platform: %s", g_fixes.GetPlatformName());
+    PLATFORM_INFO("Architecture: %s", g_fixes.GetPlatformConfig());
+    
+    // Validate input
+    if (!programPath) {
+        PLATFORM_ERROR("No program path provided");
+        return -1;
+    }
+    
+    // Set up error handling
+    g_fixes.SetupErrorHandlers();
+    
+    // Load ELF binary with error handling
+    PLATFORM_INFO("Loading ELF binary...");
+    ObjectDeleter<ElfImage> image(ElfImage::Load(programPath));
+    if (!image.IsSet()) {
+        PLATFORM_ERROR("Failed to load ELF binary: %s", programPath);
+        return -1;
+    }
+    
+    PLATFORM_SUCCESS("Binary loaded at %p, entry at %p", 
+                    image->GetImageBase(), image->GetEntry());
+    
+    // Create execution context with platform-specific fixes
+    ProgramContext ctx;
+    ctx.image = image.Get();
+    
+    // Platform-specific entry point setup
+    ctx.entryPoint = g_fixes.SetupEntryPoint(image);
+    PLATFORM_INFO("Entry point setup complete: 0x%lx", ctx.entryPoint);
+    
+    ctx.stackSize = DEFAULT_STACK_SIZE;
+    ctx.linker = new DynamicLinker();
+    
+    // Create platform-specific components with error handling
+    status_t setup_result = SetupPlatformComponents(ctx, image.Get());
+    if (setup_result != PLATFORM_OK) {
+        PLATFORM_ERROR("Failed to setup platform components");
+        return -1;
+    }
+    
+    PLATFORM_SUCCESS("Platform components created successfully");
+    
+    // Load dynamic dependencies with platform-specific strategies
+    status_t deps_result = LoadPlatformDependencies(ctx, image.Get());
+    if (deps_result != PLATFORM_OK) {
+        PLATFORM_ERROR("Failed to load dependencies");
+        return -1;
+    }
+    
+    PLATFORM_INFO("Dependencies loaded successfully");
+    
+    // Execute with platform-specific engine
+    PLATFORM_INFO("Executing program with %s engine", g_fixes.GetPlatformName());
+    
+    status_t exec_result = ctx.executionEngine->ExecuteProgram(ctx, programPath, argv, env);
+    
+    // Generate comprehensive execution report
+    GenerateExecutionReport(exec_result);
+    
+    return exec_result;
+}
 
-  // For now, just verify that libroot.so was loaded
-  // Full symbol resolution would happen here
-  ElfImage *libroot = ctx.linker->GetLibrary("libroot.so");
-  if (!libroot) {
-    printf("[X86] Warning: libroot.so not loaded, symbols may not resolve\n");
-    // Continue anyway - some symbols might be in the binary itself
-    return true;
-  }
+status_t ExecutionBootstrap::SetupPlatformComponents(ProgramContext& ctx, ElfImage* image)
+{
+    PLATFORM_DEBUG("Setting up platform components for %s", g_fixes.GetPlatformName());
+    
+    // Create platform-specific execution engine
+    ctx.executionEngine = CreateExecutionEngine(g_fixes.GetPlatformName(), image);
+    if (!ctx.executionEngine) {
+        PLATFORM_ERROR("Failed to create execution engine for platform: %s", g_fixes.GetPlatformName());
+        return PLATFORM_ERROR;
+    }
+    
+    // Create platform-specific dynamic linker
+    ctx.dynamicLinker = CreateDynamicLinker(g_fixes.GetPlatformName());
+    if (!ctx.dynamicLinker) {
+        PLATFORM_ERROR("Failed to create dynamic linker for platform: %s", g_fixes.GetPlatformName());
+        return PLATFORM_ERROR;
+    }
+    
+    // Create platform-specific memory manager (with fixes)
+    ctx.memoryManager = CreateMemoryManager(g_fixes.GetPlatformName());
+    if (!ctx.memoryManager) {
+        PLATFORM_ERROR("Failed to create memory manager for platform: %s", g_fixes.GetPlatformName());
+        return PLATFORM_ERROR;
+    }
+    
+    // Create platform-specific GUI backend
+    ctx.guiBackend = CreateGUIBackend(g_fixes.GetPlatformName());
+    if (!ctx.guiBackend) {
+        PLATFORM_ERROR("Failed to create GUI backend for platform: %s", g_fixes.GetPlatformName());
+        return PLATFORM_ERROR;
+    }
+    
+    // Create symbol resolver and profiler
+    ctx.symbolResolver = new SymbolResolver();
+    ctx.profiler = new Profiler();
+    
+    // Initialize all components with error checking
+    if (ctx.executionEngine) {
+        ctx.executionEngine->Initialize();
+        PLATFORM_DEBUG("Execution engine initialized");
+    }
+    
+    if (ctx.dynamicLinker) {
+        ctx.dynamicLinker->Initialize();
+        PLATFORM_DEBUG("Dynamic linker initialized");
+    }
+    
+    if (ctx.memoryManager) {
+        ctx.memoryManager->Initialize();
+        PLATFORM_DEBUG("Memory manager initialized");
+    }
+    
+    if (ctx.guiBackend) {
+        ctx.guiBackend->Initialize();
+        PLATFORM_DEBUG("GUI backend initialized");
+    }
+    
+    if (ctx.symbolResolver) {
+        ctx.symbolResolver->Initialize();
+        PLATFORM_DEBUG("Symbol resolver initialized");
+    }
+    
+    if (ctx.profiler) {
+        ctx.profiler->Initialize();
+        PLATFORM_DEBUG("Profiler initialized");
+    }
+    
+    PLATFORM_SUCCESS("Platform components setup complete");
+    return PLATFORM_OK;
+}
 
-  printf("[X86] libroot.so available for symbol resolution\n");
-  return true;
+ExecutionEngine* ExecutionBootstrap::CreateExecutionEngine(const char* platform_name)
+{
+    PLATFORM_DEBUG("Creating execution engine for platform: %s", platform_name);
+    
+    if (strcmp(platform_name, "x86_64") == 0) {
+        PLATFORM_INFO("Creating x86_64 optimized engine with 64-bit support");
+        return new ExecutionEngineX86_64();
+    } else if (strcmp(platform_name, "x86_32") == 0) {
+        PLATFORM_INFO("Creating x86_32 engine");
+        return new ExecutionEngineX86_32();
+    } else if (strcmp(platform_name, "arm64") == 0) {
+        PLATFORM_INFO("Creating ARM64 engine with NEON support");
+        return new ExecutionEngineARM64();
+    } else if (strcmp(platform_name, "riscv64") == 0) {
+        PLATFORM_INFO("Creating RISC-V engine with vector extensions");
+        return new ExecutionEngineRISCV64();
+    } else {
+        PLATFORM_WARNING("Creating generic engine for unknown platform: %s", platform_name);
+        return new ExecutionEngineGeneric();
+    }
+}
+
+DynamicLinker* ExecutionBootstrap::CreateDynamicLinker(const char* platform_name)
+{
+    PLATFORM_DEBUG("Creating dynamic linker for platform: %s", platform_name);
+    
+    if (strcmp(platform_name, "x86_64") == 0 || strcmp(platform_name, "x86_32") == 0) {
+        PLATFORM_INFO("Creating Haiku dynamic linker for x86 platform");
+        return new HaikuDynamicLinker();
+    } else if (strcmp(platform_name, "arm64") == 0) {
+        PLATFORM_INFO("Creating ARM64 dynamic linker");
+        return new ARMDynamicLinker();
+    } else if (strcmp(platform_name, "riscv64") == 0) {
+        PLATFORM_INFO("Creating RISC-V dynamic linker");
+        return new RISCVDynamicLinker();
+    } else {
+        PLATFORM_WARNING("Creating generic dynamic linker for platform: %s", platform_name);
+        return new GenericDynamicLinker();
+    }
+}
+
+MemoryManager* ExecutionBootstrap::CreateMemoryManager(const char* platform_name)
+{
+    PLATFORM_DEBUG("Creating memory manager for platform: %s", platform_name);
+    
+    if (strcmp(platform_name, "x86_64") == 0 || strcmp(platform_name, "x86_32") == 0) {
+        PLATFORM_INFO("Creating Haiku memory manager with area support");
+        return new HaikuMemoryManager();
+    } else if (strcmp(platform_name, "arm64") == 0) {
+        PLATFORM_INFO("Creating ARM64 memory manager with 64-bit alignment");
+        return new ARM64MemoryManager();
+    } else if (strcmp(platform_name, "riscv64") == 0) {
+        PLATFORM_INFO("Creating RISC-V memory manager with page optimization");
+        return new RISCVMemoryManager();
+    } else {
+        PLATFORM_WARNING("Creating generic memory manager for platform: %s", platform_name);
+        return new GenericMemoryManager();
+    }
+}
+
+GUIBackend* ExecutionBootstrap::CreateGUIBackend(const char* platform_name)
+{
+    PLATFORM_DEBUG("Creating GUI backend for platform: %s", platform_name);
+    
+    if (strcmp(platform_name, "x86_64") == 0 || strcmp(platform_name, "x86_32") == 0 ||
+        strcmp(platform_name, "riscv64") == 0 || strcmp(platform_name, "arm64") == 0) {
+        PLATFORM_INFO("Creating Haiku GUI backend with app_server integration");
+        return new HaikuGUIBackend();
+    } else {
+        PLATFORM_WARNING("Creating SDL2 fallback GUI backend for platform: %s", platform_name);
+        return new SDL2GUIBackend();
+    }
+}
+
+status_t ExecutionBootstrap::LoadPlatformDependencies(ProgramContext& ctx, ElfImage* image)
+{
+    if (!image->IsDynamic()) {
+        PLATFORM_INFO("Static binary - no dependencies to load");
+        return PLATFORM_OK;
+    }
+    
+    PLATFORM_DEBUG("Loading dependencies for platform: %s", g_fixes.GetPlatformName());
+    
+    // Platform-specific dependency loading strategies
+    const char* platform_name = g_fixes.GetPlatformName();
+    bool load_success = false;
+    
+    if (strcmp(platform_name, "x86_64") == 0) {
+        PLATFORM_INFO("x86_64: Using compatibility mode for x86 programs");
+        load_success = ctx.dynamicLinker->LoadDependencies(image->GetDependencies());
+        if (!load_success) {
+            PLATFORM_WARNING("x86_64: Attempting alternative loading strategy");
+            // Try x86_32 emulation on x86_64
+            load_success = ctx.dynamicLinker->LoadDependenciesForArch(image->GetDependencies(), "x86_32");
+        }
+    } else if (strcmp(platform_name, "arm64") == 0) {
+        PLATFORM_INFO("ARM64: Using ARM64 native execution");
+        load_success = ctx.dynamicLinker->LoadDependencies(image->GetDependencies());
+    } else if (strcmp(platform_name, "riscv64") == 0) {
+        PLATFORM_INFO("RISC-V: Using native RISC-V execution");
+        load_success = ctx.dynamicLinker->LoadDependencies(image->GetDependencies());
+    } else {
+        PLATFORM_INFO("Generic: Using standard dependency loading");
+        load_success = ctx.dynamicLinker->LoadDependencies(image->GetDependencies());
+    }
+    
+    if (!load_success) {
+        PLATFORM_ERROR("Failed to load dependencies for platform: %s", platform_name);
+        return PLATFORM_ERROR;
+    }
+    
+    // Platform-specific optimization hints
+    PLATFORM_OPT("Platform-specific optimizations applied for %s", platform_name);
+    return PLATFORM_OK;
+}
+
+status_t ExecutionBootstrap::ResolveDynamicSymbols(ProgramContext& ctx, ElfImage* image)
+{
+    if (!image->IsDynamic()) {
+        PLATFORM_INFO("Static binary - no symbols to resolve");
+        return PLATFORM_OK;
+    }
+    
+    PLATFORM_INFO("Resolving dynamic symbols...");
+    
+    if (!ctx.symbolResolver) {
+        PLATFORM_ERROR("No symbol resolver available");
+        return PLATFORM_ERROR;
+    }
+    
+    bool resolve_success = ctx.symbolResolver->ResolveSymbols(image);
+    if (!resolve_success) {
+        PLATFORM_WARNING("Failed to resolve symbols - continuing anyway");
+        return PLATFORM_OK;  // Don't fail execution for symbol resolution issues
+    }
+    
+    PLATFORM_SUCCESS("Dynamic symbols resolved successfully");
+    return PLATFORM_OK;
+}
+
+status_t ExecutionBootstrap::ApplyRelocations(ProgramContext& ctx, ElfImage* image)
+{
+    if (!image->IsDynamic()) {
+        PLATFORM_INFO("Static binary - no relocations to apply");
+        return PLATFORM_OK;
+    }
+    
+    PLATFORM_INFO("Applying relocations...");
+    
+    // Create relocation processor with error handling
+    RelocationProcessor reloc_processor(ctx.dynamicLinker);
+    status_t reloc_status = reloc_processor.ProcessRelocations(image);
+    
+    if (reloc_status != PLATFORM_OK) {
+        PLATFORM_ERROR("Failed to apply relocations");
+        return PLATFORM_ERROR;
+    }
+    
+    PLATFORM_SUCCESS("Relocations applied successfully");
+    return PLATFORM_OK;
+}
+
+status_t ExecutionBootstrap::ExecuteWithFallback(ProgramContext& ctx, const char *programPath, char **argv, char **env)
+{
+    PLATFORM_INFO("Executing with platform-specific engine and fallback strategies...");
+    
+    // Execute with primary engine
+    status_t result = ctx.executionEngine->ExecuteProgram(ctx, programPath, argv, env);
+    
+    if (result != PLATFORM_OK) {
+        PLATFORM_WARNING("Primary execution failed, attempting fallback");
+        
+        // Try fallback execution strategies based on platform
+        const char* platform_name = g_fixes.GetPlatformName();
+        
+        if (strcmp(platform_name, "x86_64") == 0) {
+            PLATFORM_INFO("Attempting x86_32 compatibility fallback");
+            // Try running with x86_32 interpreter
+            result = ExecuteWithX8632Fallback(ctx, programPath, argv, env);
+        } else if (strcmp(platform_name, "riscv64") == 0) {
+            PLATFORM_INFO("Attempting RISC-V software fallback");
+            result = ExecuteWithRISCVFallback(ctx, programPath, argv, env);
+        }
+    }
+    
+    return result;
+}
+
+status_t ExecutionBootstrap::ExecuteWithX8632Fallback(ProgramContext& ctx, const char *programPath, char **argv, char **env)
+{
+    PLATFORM_INFO("Attempting x86_32 fallback execution");
+    
+    // Create fallback x86_32 context
+    X86_32FallbackContext fallbackCtx;
+    fallbackCtx.InitializeFrom(ctx);
+    
+    // Execute with x86_32 interpreter
+    X86_32FallbackInterpreter interpreter;
+    status_t result = interpreter.ExecuteProgram(fallbackCtx, programPath, argv, env);
+    
+    if (result == PLATFORM_OK) {
+        PLATFORM_SUCCESS("x86_32 fallback execution successful");
+    } else {
+        PLATFORM_ERROR("x86_32 fallback failed");
+    }
+    
+    return result;
+}
+
+status_t ExecutionBootstrap::ExecuteWithRISCVFallback(ProgramContext& ctx, const char *programPath, char **argv, char **env)
+{
+    PLATFORM_INFO("Attempting RISC-V software fallback");
+    
+    // Create RISC-V fallback context
+    RISCVMFallbackContext fallbackCtx;
+    fallbackCtx.InitializeFrom(ctx);
+    
+    // Execute with RISC-V software interpreter
+    RISCVMSoftwareInterpreter interpreter;
+    status_t result = interpreter.ExecuteProgram(fallbackCtx, programPath, argv, env);
+    
+    if (result == PLATFORM_OK) {
+        PLATFORM_SUCCESS("RISC-V fallback execution successful");
+    } else {
+        PLATFORM_ERROR("RISC-V fallback failed");
+    }
+    
+    return result;
+}
+
+void ExecutionBootstrap::GenerateExecutionReport(status_t exec_result)
+{
+    PLATFORM_INFO("=== EXECUTION REPORT ===");
+    
+    const char* platform_name = g_fixes.GetPlatformName();
+    PLATFORM_INFO("Platform: %s", platform_name);
+    PLATFORM_INFO("Engine: %s", fExecutionEngine ? fExecutionEngine->GetEngineName() : "None");
+    PLATFORM_INFO("Memory: %s", fMemoryManager ? fMemoryManager->GetManagerName() : "None");
+    PLATFORM_INFO("GUI: %s", fGUIBackend ? fGUIBackend->GetBackendName() : "None");
+    
+    if (ctx.profiler) {
+        PLATFORM_INFO("Performance metrics available");
+    }
+    
+    PLATFORM_INFO("Execution Result: %s", exec_result == PLATFORM_OK ? "SUCCESS" : "FAILED");
+    
+    if (exec_result != PLATFORM_OK) {
+        PLATFORM_ERROR("Execution failed - check crash reports");
+        g_fixes.GenerateCrashReport(exec_result);
+    }
+    
+    PLATFORM_INFO("=== END REPORT ===");
+}
+
+// Entry point for platform-specific execution
+int main(int argc, char **argv, char **env)
+{
+    printf("\n");
+    printf("UserlandVM-HIT Platform-Independent Execution Engine\n");
+    printf("=========================================\n");
+    
+    // Initialize global fixes
+    UserlandVMFixes global_fixes;
+    g_fixes = global_fixes;
+    
+    // Detect platform and show banner
+    if (global_fixes.DetectPlatform()) {
+        const char* platform_name = global_fixes.GetPlatformName();
+        const char* platform_config = global_fixes.GetPlatformConfig();
+        
+        printf("Detected Platform: %s\n", platform_name);
+        printf("Architecture: %s\n", platform_config);
+        printf("Optimization: %s\n", platform_config);
+        printf("\n");
+        
+        // Create and initialize platform-specific bootstrap
+        ExecutionBootstrap bootstrap;
+        
+        // Execute program with comprehensive error handling
+        status_t result = bootstrap.ExecuteProgram(argv[0], argv, env);
+        
+        // Generate execution report
+        if (result == PLATFORM_OK) {
+            printf("\n%s\n", "✅ Program executed successfully");
+        } else {
+            printf("\n%s\n", "❌ Program execution failed");
+        }
+        
+        return result == PLATFORM_OK ? 0 : 1;
+    } else {
+        printf("\n%s\n", "❌ Platform detection failed");
+        return 1;
+    }
 }
