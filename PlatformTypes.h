@@ -216,11 +216,28 @@ typedef uint32_t cpu_subtype;
 #include <OS.h>
 #else
 // On non-Haiku systems, provide stubs for Haiku APIs
-extern area_id create_area(const char *name, void **address, uint32 addressSpec,
-                          size_t size, uint32 lock, uint32 protection);
-extern status_t delete_area(area_id area);
-extern area_id clone_area(const char *name, void **address, 
-                         uint32 addressSpec, area_id source);
+#include <cstdlib>
+#include <cstring>
+
+// Simple stub implementations using malloc
+static inline area_id create_area(const char *name, void **address, uint32 addressSpec,
+                           size_t size, uint32 lock, uint32 protection) {
+    (void)name; (void)addressSpec; (void)lock; (void)protection;
+    *address = malloc(size);
+    return (area_id)1; // Dummy area ID
+}
+
+static inline status_t delete_area(area_id area) {
+    (void)area;
+    return B_OK;
+}
+
+static inline area_id clone_area(const char *name, void **address, 
+                         uint32 addressSpec, area_id source) {
+    (void)name; (void)addressSpec; (void)source;
+    *address = malloc(4096);
+    return (area_id)2; // Dummy area ID
+}
 #endif
 
 #endif // PLATFORM_TYPES_H

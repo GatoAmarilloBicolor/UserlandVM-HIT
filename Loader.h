@@ -3,10 +3,17 @@
 // MUST be first - defines all types before any system headers
 #include "PlatformTypes.h"
 
+// Include stub headers for missing Haiku headers
+#include "arch_config_stub.h"
+#include "image_defs_stub.h"
+
 #include <elf.h>
 #include <cstdint>
 #include <memory>
 #include <string>
+
+// Forward declaration
+class ElfImage;
 
 // AutoDeleter implementations - simplified for compatibility
 template<typename T>
@@ -118,7 +125,10 @@ struct Elf32Class {
 	static constexpr uint32_t kRelTypeGlobalData = 6;   // R_386_GLOB_DAT
 	static constexpr uint32_t kRelTypeRelative = 8;      // R_386_RELATIVE
 	static constexpr uint32_t kRelType32 = 2;           // R_386_32
-};
+	};
+
+// Forward declaration for ElfImage class
+class ElfImage;
 
 using Elf32AutoDeleter = AutoDeleter<Elf32Class>;
 using FileAutoDeleter = FileCloser;
