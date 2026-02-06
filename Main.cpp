@@ -1,3 +1,6 @@
+// MUST be first - defines all types before any system headers
+#include "PlatformTypes.h"
+
 #include <private/system/user_runtime.h>
 #include <private/kernel/ksyscalls.h>
 #include "syscall_table.h"

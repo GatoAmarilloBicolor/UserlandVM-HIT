@@ -1,5 +1,8 @@
 #pragma once
 
+// MUST be first - defines all types before any system headers
+#include "PlatformTypes.h"
+
 #include <elf.h>
 #include <cstdint>
 #include <AutoDeleter.h>
