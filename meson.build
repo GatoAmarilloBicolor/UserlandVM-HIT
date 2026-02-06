@@ -66,7 +66,7 @@ executable(
 	'CommpageManager.cpp',
 	'TLSSetup.cpp',
 	'ExecutionBootstrap.cpp',
-	'ArchitectureFactory.cpp',
+	# 'ArchitectureFactory.cpp',  # TODO: Fix incomplete implementation
 	'Main.cpp',
 	
 	# Architecture-specific components
@@ -82,33 +82,23 @@ executable(
 	'OptimizedX86Executor.cpp',
 	
 	# Enhanced dynamic loading components
-	'dynamic_loading/ProgramHeaderParser.cpp',
-	'dynamic_loading/SymbolResolver.cpp',
-	'dynamic_loading/CompleteRelocationProcessor.cpp',
+	# 'dynamic_loading/ProgramHeaderParser.cpp',
+	# 'dynamic_loading/SymbolResolver.cpp',
+	# 'dynamic_loading/CompleteRelocationProcessor.cpp',
 	
 	# Enhanced interpreter with recycled syscalls
-	'interpreter/RecycledSyscalls.cpp',
+	# 'interpreter/RecycledSyscalls.cpp',
 	
 	# Haiku platform components
 	'platform/haiku/system/Haiku32SyscallDispatcher.cpp',
-	'platform/haiku/system/HaikuRuntimeLoader.cpp',
-	'platform/haiku/memory/HaikuAddressSpace.cpp',
-	'platform/haiku/gui/HaikuGUISyscalls.cpp',
-	'platform/haiku/gui/HaikuGUIBackend.cpp',
-	'platform/haiku/gui/HaikuGUIStub.cpp',
+	# 'platform/haiku/system/HaikuRuntimeLoader.cpp',
+	# 'platform/haiku/memory/HaikuAddressSpace.cpp',
+	# 'platform/haiku/gui/HaikuGUISyscalls.cpp',
+	# 'platform/haiku/gui/HaikuGUIBackend.cpp',
+	# 'platform/haiku/gui/HaikuGUIStub.cpp',
 	include_directories: [
 		# Core headers
 		'.',
-		
-		# Haiku external dependencies
-		'external/haiku/headers',
-		'external/haiku/headers/os',
-		'external/haiku/headers/os/support',
-		'external/haiku/headers/os/kernel',
-		'external/haiku/headers/private',
-		'external/haiku/headers/private/shared',
-		'external/haiku/headers/private/system',
-		'external/haiku/headers/private/system/arch/x86',
 		
 		# Platform headers
 		'platform',
@@ -118,13 +108,12 @@ executable(
 		'interpreter',
 		
 		# System Haiku headers (if on Haiku)
-		# Commented out for non-Haiku builds
-		# '/boot/system/develop/headers',
-		# '/boot/system/develop/headers/os',
-		# '/boot/system/develop/headers/private',
-		# '/boot/system/develop/headers/private/shared',
-		# '/boot/system/develop/headers/private/system',
-		# '/boot/system/develop/headers/private/system/arch/x86',
+		'/boot/system/develop/headers',
+		'/boot/system/develop/headers/os',
+		'/boot/system/develop/headers/private',
+		'/boot/system/develop/headers/private/shared',
+		'/boot/system/develop/headers/private/system',
+		'/boot/system/develop/headers/private/system/arch/x86',
 	],
 	gnu_symbol_visibility: 'hidden',
 	install: true

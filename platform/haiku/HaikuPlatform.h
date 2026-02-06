@@ -10,22 +10,22 @@
 
 // System components
 #include "system/Haiku32SyscallDispatcher.h"
-#include "system/HaikuOptimizer.h"
+// #include "system/HaikuOptimizer.h"
 
 // Memory management
-#include "memory/HaikuAddressSpace.h"
+// #include "memory/HaikuAddressSpace.h"
 
 // Threading
-#include "threading/HaikuThreading.h"
+// #include "threading/HaikuThreading.h"
 
 // GUI components
-#include "gui/HaikuGUIBackend.h"
-#include "gui/HaikuGUISyscalls.h"
-#include "gui/HaikuGUIStub.h"
-#include "gui/HaikuNativeGUIBackend.h"
+// #include "gui/HaikuGUIBackend.h"
+// #include "gui/HaikuGUISyscalls.h"
+// #include "gui/HaikuGUIStub.h"
+// #include "gui/HaikuNativeGUIBackend.h"
 
 // Compatibility layer
-#include "compat/haiku/HaikuStubs.h"
-#include "compat/haiku/HaikuCompat.h"
+// #include "compat/haiku/HaikuStubs.h"
+// #include "compat/haiku/HaikuCompat.h"
 
 #endif // HAIKU_PLATFORM_H

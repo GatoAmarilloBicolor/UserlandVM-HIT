@@ -10,9 +10,6 @@
 #include <elf.h>
 #include <sys/mman.h>
 
-// Global instance for fixes
-UserlandVMFixes g_fixes;
-
 ExecutionBootstrap::ExecutionBootstrap()
     : fExecutionEngine(nullptr),
       fDynamicLinker(nullptr),
