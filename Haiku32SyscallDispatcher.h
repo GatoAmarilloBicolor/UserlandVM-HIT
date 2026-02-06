@@ -26,8 +26,13 @@ private:
     status_t SyscallOpen(const char* path, uint32_t flags, uint32_t mode, uint32_t& result);
     status_t SyscallClose(uint32_t fd, uint32_t& result);
     
-    // Additional syscalls
+    // Memory management syscalls
     status_t SyscallBrk(uint32_t addr, uint32_t& result);
+    status_t SyscallMmap2(uint32_t addr, uint32_t length, uint32_t prot, 
+                         uint32_t flags, uint32_t fd, uint32_t offset, uint32_t& result);
+    status_t SyscallMunmap(uint32_t addr, uint32_t length, uint32_t& result);
+    
+    // Directory syscalls
     status_t SyscallGetCwd(char* buffer, uint32_t size, uint32_t& result);
     status_t SyscallChdir(const char* path, uint32_t& result);
     
@@ -38,6 +43,8 @@ private:
     static const uint32_t SYSCALL_OPEN = 114;
     static const uint32_t SYSCALL_CLOSE = 158;
     static const uint32_t SYSCALL_BRK = 119;
+    static const uint32_t SYSCALL_MMAP2 = 166;
+    static const uint32_t SYSCALL_MUNMAP = 148;
     static const uint32_t SYSCALL_GETCWD = 146;
     static const uint32_t SYSCALL_SETCWD = 147;
 };

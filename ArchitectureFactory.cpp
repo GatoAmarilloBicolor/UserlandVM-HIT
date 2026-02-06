@@ -18,7 +18,10 @@
 // Architecture-specific includes
 #include "VirtualCpuX86Native.h"
 #include "X86_32GuestContext.h"
+#include "X86_64GuestContext.h"
 #include "InterpreterX86_32.h"
+#include "Haiku32SyscallDispatcher.h"
+#include "Haiku64SyscallDispatcher.h"
 
 // ELF header for architecture detection
 #include <elf.h>
@@ -58,8 +61,15 @@ std::unique_ptr<ExecutionEngine> ArchitectureFactory::CreateExecutionEngine(Targ
 std::unique_ptr<GuestContext> ArchitectureFactory::CreateGuestContext(TargetArchitecture arch) {
     switch (arch) {
         case TargetArchitecture::HAIKU_X86_32:
+            // We'll need an AddressSpace for this - returning nullptr for now
+            // TODO: Fix this by passing AddressSpace to this method
+            return nullptr;
+        case TargetArchitecture::HAIKU_X86_64:
+            // We'll need an AddressSpace for this - returning nullptr for now  
+            return nullptr;
         case TargetArchitecture::LINUX_X86_64:
-            return std::make_unique<X86_32GuestContext>();
+            // We'll need an AddressSpace for this - returning nullptr for now
+            return nullptr;
         // TODO: Implement other guest contexts
         default:
             return nullptr;
@@ -135,6 +145,8 @@ std::unique_ptr<AddressSpace> ArchitectureFactory::CreateHaikuX86_32AddressSpace
 
 std::unique_ptr<AddressSpace> ArchitectureFactory::CreateHaikuX86_64AddressSpace() {
     // TODO: Implement x86-64 Haiku address space
+    // For now, return nullptr to indicate not implemented
+    printf("[ARCH_FACTORY] x86-64 address space not yet implemented\n");
     return nullptr;
 }
 
@@ -149,12 +161,15 @@ std::unique_ptr<AddressSpace> ArchitectureFactory::CreateLinuxX86_64AddressSpace
 }
 
 std::unique_ptr<ExecutionEngine> ArchitectureFactory::CreateHaikuX86_32Engine(AddressSpace* space) {
-    // Use interpreter for now
-    return std::make_unique<InterpreterX86_32>(*space, dispatcher);
+    // Create syscall dispatcher
+    auto dispatcher = CreateHaikuX86_32SyscallDispatcher(space);
+    return std::make_unique<InterpreterX86_32>(*space, *dispatcher);
 }
 
 std::unique_ptr<ExecutionEngine> ArchitectureFactory::CreateHaikuX86_64Engine(AddressSpace* space) {
     // TODO: Implement x86-64 execution engine
+    // For now, return nullptr to indicate not implemented
+    printf("[ARCH_FACTORY] x86-64 execution engine not yet implemented\n");
     return nullptr;
 }
 
@@ -173,8 +188,8 @@ std::unique_ptr<SyscallDispatcher> ArchitectureFactory::CreateHaikuX86_32Syscall
 }
 
 std::unique_ptr<SyscallDispatcher> ArchitectureFactory::CreateHaikuX86_64SyscallDispatcher(AddressSpace* space) {
-    // TODO: Implement x86-64 syscall dispatcher
-    return nullptr;
+    // Create x86-64 syscall dispatcher
+    return std::make_unique<Haiku64SyscallDispatcher>();
 }
 
 std::unique_ptr<SyscallDispatcher> ArchitectureFactory::CreateHaikuRISCV64SyscallDispatcher(AddressSpace* space) {

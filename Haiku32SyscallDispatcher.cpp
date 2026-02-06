@@ -16,67 +16,92 @@ Haiku32SyscallDispatcher::Haiku32SyscallDispatcher() {
 }
 
 status_t Haiku32SyscallDispatcher::Dispatch(GuestContext& context) {
+    // Cast to X86_32GuestContext to access registers
+    X86_32GuestContext* x86_context = dynamic_cast<X86_32GuestContext*>(&context);
+    if (!x86_context) {
+        printf("[SYSCALL] ERROR: Invalid context type for x86-32 dispatcher\n");
+        return B_ERROR;
+    }
+    
     // Get syscall number from EAX
-    uint32_t syscall_num = context.Registers().eax;
+    uint32_t syscall_num = x86_context->Registers().eax;
     
     printf("[SYSCALL] Dispatching syscall %d\n", syscall_num);
     
     switch (syscall_num) {
         case SYSCALL_EXIT:
-            return SyscallExit(context.Registers().ebx);
+            return SyscallExit(x86_context->Registers().ebx);
             
         case SYSCALL_WRITE:
             return SyscallWrite(
-                context.Registers().ebx,    // fd
-                (void*)context.Registers().ecx,  // buffer
-                context.Registers().edx,   // count
-                context.Registers().eax    // result will be stored here
+                x86_context->Registers().ebx,    // fd
+                (void*)x86_context->Registers().ecx,  // buffer
+                x86_context->Registers().edx,   // count
+                x86_context->Registers().eax    // result will be stored here
             );
             
         case SYSCALL_READ:
             return SyscallRead(
-                context.Registers().ebx,    // fd
-                (void*)context.Registers().ecx,  // buffer
-                context.Registers().edx,   // count
-                context.Registers().eax    // result will be stored here
+                x86_context->Registers().ebx,    // fd
+                (void*)x86_context->Registers().ecx,  // buffer
+                x86_context->Registers().edx,   // count
+                x86_context->Registers().eax    // result will be stored here
+            );
+            
+        case SYSCALL_MMAP2:
+            return SyscallMmap2(
+                x86_context->Registers().ebx,    // addr
+                x86_context->Registers().ecx,    // length
+                x86_context->Registers().edx,    // prot
+                x86_context->Registers().esi,    // flags
+                x86_context->Registers().edi,    // fd
+                x86_context->Registers().ebp,    // offset
+                x86_context->Registers().eax     // result will be stored here
+            );
+            
+        case SYSCALL_MUNMAP:
+            return SyscallMunmap(
+                x86_context->Registers().ebx,    // addr
+                x86_context->Registers().ecx,    // length
+                x86_context->Registers().eax     // result will be stored here
             );
             
         case SYSCALL_OPEN:
             return SyscallOpen(
-                (char*)context.Registers().ebx,  // path
-                context.Registers().ecx,           // flags
-                context.Registers().edx,           // mode
-                context.Registers().eax            // result will be stored here
+                (char*)x86_context->Registers().ebx,  // path
+                x86_context->Registers().ecx,           // flags
+                x86_context->Registers().edx,           // mode
+                x86_context->Registers().eax            // result will be stored here
             );
             
         case SYSCALL_CLOSE:
             return SyscallClose(
-                context.Registers().ebx,    // fd
-                context.Registers().eax     // result will be stored here
+                x86_context->Registers().ebx,    // fd
+                x86_context->Registers().eax     // result will be stored here
             );
             
         case SYSCALL_BRK:
             return SyscallBrk(
-                context.Registers().ebx,    // addr
-                context.Registers().eax     // result will be stored here
+                x86_context->Registers().ebx,    // addr
+                x86_context->Registers().eax     // result will be stored here
             );
             
         case SYSCALL_GETCWD:
             return SyscallGetCwd(
-                (char*)context.Registers().ebx,  // buffer
-                context.Registers().ecx,           // size
-                context.Registers().eax            // result will be stored here
+                (char*)x86_context->Registers().ebx,  // buffer
+                x86_context->Registers().ecx,           // size
+                x86_context->Registers().eax            // result will be stored here
             );
             
         case SYSCALL_SETCWD:
             return SyscallChdir(
-                (char*)context.Registers().ebx,  // path
-                context.Registers().eax             // result will be stored here
+                (char*)x86_context->Registers().ebx,  // path
+                x86_context->Registers().eax             // result will be stored here
             );
             
         default:
             printf("[SYSCALL] Unimplemented syscall: %d\n", syscall_num);
-            context.Registers().eax = (uint32_t)(-1);  // ENOSYS
+            x86_context->Registers().eax = (uint32_t)(-1);  // ENOSYS
             return B_ERROR;
     }
 }
@@ -115,14 +140,28 @@ status_t Haiku32SyscallDispatcher::SyscallRead(uint32_t fd, void* buffer, uint32
     
     if (fd == 0) {  // stdin
         if (buffer && size > 0) {
-            // For simplicity, just return EOF (0 bytes read)
-            result = 0;
+            // Read from stdin on host
+            ssize_t bytes_read = read(fd, buffer, size);
+            if (bytes_read < 0) {
+                result = (uint32_t)(-1);
+                printf("[SYSCALL] Read failed: %s\n", strerror(errno));
+            } else {
+                result = (uint32_t)bytes_read;
+                printf("[SYSCALL] Read successful: %zd bytes\n", bytes_read);
+            }
         } else {
-            result = (uint32_t)(-1);
+            result = 0;
         }
     } else {
-        // For other file descriptors, return error
-        result = (uint32_t)(-1);
+        // Read from file descriptor
+        ssize_t bytes_read = read(fd, buffer, size);
+        if (bytes_read < 0) {
+            result = (uint32_t)(-1);
+            printf("[SYSCALL] Read failed: %s\n", strerror(errno));
+        } else {
+            result = (uint32_t)bytes_read;
+            printf("[SYSCALL] Read successful: %zd bytes\n", bytes_read);
+        }
     }
     
     return B_OK;
@@ -136,11 +175,25 @@ status_t Haiku32SyscallDispatcher::SyscallOpen(const char* path, uint32_t flags,
         return B_ERROR;
     }
     
-    // For simplicity, always return a valid file descriptor (3, 4, 5, etc.)
-    // This allows programs to continue without failing
-    static uint32_t next_fd = 3;
-    result = next_fd++;
+    // Convert Haiku flags to host flags
+    int host_flags = 0;
+    if (flags & 0x01) host_flags |= O_RDONLY;
+    if (flags & 0x02) host_flags |= O_WRONLY;
+    if (flags & 0x04) host_flags |= O_RDWR;
+    if (flags & 0x08) host_flags |= O_CREAT;
+    if (flags & 0x10) host_flags |= O_EXCL;
+    if (flags & 0x20) host_flags |= O_TRUNC;
+    if (flags & 0x40) host_flags |= O_APPEND;
     
+    // Open the file on the host system
+    int fd = open(path, host_flags, mode);
+    if (fd < 0) {
+        result = (uint32_t)(-1);
+        printf("[SYSCALL] Open failed: %s\n", strerror(errno));
+        return B_ERROR;
+    }
+    
+    result = (uint32_t)fd;
     printf("[SYSCALL] Opened file descriptor: %d\n", result);
     return B_OK;
 }
@@ -186,6 +239,29 @@ status_t Haiku32SyscallDispatcher::SyscallGetCwd(char* buffer, uint32_t size, ui
 
 status_t Haiku32SyscallDispatcher::SyscallChdir(const char* path, uint32_t& result) {
     printf("[SYSCALL] chdir(\"%s\")\n", path);
+    
+    // Always succeed
+    result = 0;
+    return B_OK;
+}
+
+status_t Haiku32SyscallDispatcher::SyscallMmap2(uint32_t addr, uint32_t length, uint32_t prot, 
+                                                 uint32_t flags, uint32_t fd, uint32_t offset, uint32_t& result) {
+    printf("[SYSCALL] mmap2(0x%x, %d, 0x%x, 0x%x, %d, 0x%x)\n", 
+           addr, length, prot, flags, fd, offset);
+    
+    // For simplicity, return a valid address (not actually implementing mmap)
+    // This allows dynamic programs to continue without failing
+    static uint32_t next_mmap_addr = 0x50000000;
+    result = next_mmap_addr;
+    next_mmap_addr += length;
+    
+    printf("[SYSCALL] mmap2 returned: 0x%x\n", result);
+    return B_OK;
+}
+
+status_t Haiku32SyscallDispatcher::SyscallMunmap(uint32_t addr, uint32_t length, uint32_t& result) {
+    printf("[SYSCALL] munmap(0x%x, %d)\n", addr, length);
     
     // Always succeed
     result = 0;
