@@ -161,13 +161,13 @@ status_t InterpreterX86_32::Run(GuestContext &context) {
   fflush(stdout);
 
   while (instr_count < MAX_INSTRUCTIONS) {
-    printf("[INTERPRETER::Loop] instr_count=%u, EIP64=0x%lx, calling ExecuteInstruction\n", instr_count, x86_context.GetEIP64());
-    fflush(stdout);
+    // printf("[INTERPRETER::Loop] instr_count=%u, EIP64=0x%lx, calling ExecuteInstruction\n", instr_count, x86_context.GetEIP64());
+    // fflush(stdout);
     uint32 bytes_consumed = 0;
     X86_32Registers &regs = x86_context.Registers();
     uint32 eip_before = regs.eip;
-    printf("[INTERPRETER::Loop] About to call ExecuteInstruction\n");
-    fflush(stdout);
+    // printf("[INTERPRETER::Loop] About to call ExecuteInstruction\n");
+    // fflush(stdout);
     status_t status = ExecuteInstruction(context, bytes_consumed);
     printf("[INTERPRETER::Loop] After ExecuteInstruction, status=%d, bytes=%u\n", status, bytes_consumed);
     fflush(stdout);
@@ -249,8 +249,8 @@ status_t InterpreterX86_32::ExecuteInstruction(GuestContext &context,
   // In direct memory mode on 64-bit host, we need to use the 64-bit EIP to ensure
   // we read from the correct address. DirectAddressSpace will handle the base offset.
   uintptr_t eip_addr = x86_context.GetEIP64();
-  printf("[DEBUG] ExecuteInstruction: EIP64=0x%lx, EIP32=0x%08x\n", eip_addr, regs.eip);
-  fflush(stdout);
+  // printf("[DEBUG] ExecuteInstruction: EIP64=0x%lx, EIP32=0x%08x\n", eip_addr, regs.eip);
+  // fflush(stdout);
   
   if (eip_addr == 0) {
     // Fallback to 32-bit EIP only if 64-bit not available
