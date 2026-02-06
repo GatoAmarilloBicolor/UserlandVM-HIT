@@ -542,69 +542,13 @@ status_t Haiku32SyscallDispatcher::SyscallSeek(uint32 fd, uint32 offset,
 // GUI Syscall Dispatcher
 // ============================================================================
 
-#include "../gui/HaikuGUISyscalls.h"
+// #include "../gui/HaikuGUISyscalls.h"
 
 status_t
 Haiku32SyscallDispatcher::DispatchGUISyscall(uint32 syscall_num,
                                              X86_32GuestContext &context) {
-  switch (syscall_num) {
-  case HAIKU_SYSCALL_APP_SERVER_PORT:
-    return HaikuGUISyscalls::app_server_port(context, *fAddressSpace);
-
-  case HAIKU_SYSCALL_REGISTER_WINDOW:
-    return HaikuGUISyscalls::register_window(context, *fAddressSpace);
-
-  case HAIKU_SYSCALL_UNREGISTER_WINDOW:
-    return HaikuGUISyscalls::unregister_window(context, *fAddressSpace);
-
-  case HAIKU_SYSCALL_SET_WINDOW_TITLE:
-    return HaikuGUISyscalls::set_window_title(context, *fAddressSpace);
-
-  case HAIKU_SYSCALL_SHOW_WINDOW:
-    return HaikuGUISyscalls::show_window(context, *fAddressSpace);
-
-  case HAIKU_SYSCALL_HIDE_WINDOW:
-    return HaikuGUISyscalls::hide_window(context, *fAddressSpace);
-
-  case HAIKU_SYSCALL_MOVE_WINDOW:
-    return HaikuGUISyscalls::move_window(context, *fAddressSpace);
-
-  case HAIKU_SYSCALL_RESIZE_WINDOW:
-    return HaikuGUISyscalls::resize_window(context, *fAddressSpace);
-
-  case HAIKU_SYSCALL_DESTROY_WINDOW:
-    return HaikuGUISyscalls::destroy_window(context, *fAddressSpace);
-
-  case HAIKU_SYSCALL_FILL_RECT:
-    return HaikuGUISyscalls::fill_rect(context, *fAddressSpace);
-
-  case HAIKU_SYSCALL_DRAW_STRING:
-    return HaikuGUISyscalls::draw_string(context, *fAddressSpace);
-
-  case HAIKU_SYSCALL_SET_COLOR:
-    return HaikuGUISyscalls::set_color(context, *fAddressSpace);
-
-  case HAIKU_SYSCALL_FLUSH_GRAPHICS:
-    return HaikuGUISyscalls::flush_graphics(context, *fAddressSpace);
-
-  case HAIKU_SYSCALL_GET_MOUSE_POSITION:
-    return HaikuGUISyscalls::get_mouse_position(context, *fAddressSpace);
-
-  case HAIKU_SYSCALL_READ_KEYBOARD:
-    return HaikuGUISyscalls::read_keyboard_input(context, *fAddressSpace);
-
-  case HAIKU_SYSCALL_GET_WINDOW_FRAME:
-    return HaikuGUISyscalls::get_window_frame(context, *fAddressSpace);
-
-  case HAIKU_SYSCALL_SET_WINDOW_FRAME:
-    return HaikuGUISyscalls::set_window_frame(context, *fAddressSpace);
-
-  case HAIKU_SYSCALL_SCREENSHOT:
-    return HaikuGUISyscalls::screenshot(context, *fAddressSpace);
-
-  default:
-    DebugPrintf("[GUI_SYSCALL] Unknown GUI syscall: %u\n", syscall_num);
-    context.Registers().eax = B_ERROR;
-    return B_ERROR;
-  }
+  // GUI syscalls not yet implemented
+  DebugPrintf("[GUI_SYSCALL] Unknown GUI syscall: %u\n", syscall_num);
+  context.Registers().eax = B_ERROR;
+  return B_ERROR;
 }

@@ -149,14 +149,8 @@ std::unique_ptr<AddressSpace> ArchitectureFactory::CreateLinuxX86_64AddressSpace
 }
 
 std::unique_ptr<ExecutionEngine> ArchitectureFactory::CreateHaikuX86_32Engine(AddressSpace* space) {
-    // Try native execution first, fallback to interpreter
-    auto native = std::make_unique<VirtualCpuX86Native>(space);
-    if (native->IsSupported()) {
-        return std::move(native);
-    }
-    
-    // Fallback to interpreter
-    return std::make_unique<InterpreterX86_32>(space);
+    // Use interpreter for now
+    return std::make_unique<InterpreterX86_32>(*space, dispatcher);
 }
 
 std::unique_ptr<ExecutionEngine> ArchitectureFactory::CreateHaikuX86_64Engine(AddressSpace* space) {
