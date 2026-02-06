@@ -16,8 +16,10 @@
 #include "Loader.h"
 
 // Platform-specific bypass for Haiku headers on Linux
-#define _SYS_TYPES_H                                                           \
-  1 // Prevent re-inclusion of sys/types.h from Haiku headers if possible
+#define _SYS_TYPES_H 1 // Prevent re-inclusion of sys/types.h
+
+// Only include Haiku headers when actually on Haiku
+#ifdef __HAIKU__
 #include <OS.h>
 #include <image_defs.h>
 #include <private/system/arch/arm/arch_elf.h>
@@ -25,6 +27,10 @@
 #include <private/system/arch/x86/arch_elf.h>
 #include <private/system/arch/x86_64/arch_elf.h>
 #include <private/system/syscalls.h>
+#else
+// Use our stub headers on non-Haiku systems
+// All needed types are already defined in PlatformTypes.h
+#endif
 
 area_id vm32_create_area(const char *name, void **address, uint32 addressSpec,
                          size_t size, uint32 lock, uint32 protection);
