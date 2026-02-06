@@ -112,11 +112,28 @@ public:
         }
     }
     
-    bool LoadELF(const std::string& filename, uint32_t& entryPoint) {
+    bool LoadELF(const std::string& filename, uint32_t& entryPoint, bool& needsDynamic) {
         std::ifstream file(filename, std::ios::binary);
         if (!file) return false;
         
         ELFHeader header;
+        file.read(reinterpret_cast<char*>(&header), sizeof(header));
+        
+        // Check for PT_INTERP segment
+        needsDynamic = false;
+        for (int i = 0; i < header.phnum; i++) {
+            ProgramHeader phdr;
+            file.seekg(header.phoff + i * sizeof(ProgramHeader));
+            file.read(reinterpret_cast<char*>(&phdr), sizeof(ProgramHeader));
+            
+            if (phdr.type == 3) { // PT_INTERP = 3
+                needsDynamic = true;
+                printf("[ELF] Program requires dynamic linking (PT_INTERP found)\n");
+                break;
+            }
+        }
+        
+        file.seekg(0);
         file.read(reinterpret_cast<char*>(&header), sizeof(header));
         
         // Verificar ELF
@@ -368,10 +385,42 @@ void printUsage(const char* program) {
     std::cout << "Soporta programas Haiku x86-32 (estáticos y dinámicos)" << std::endl;
 }
 
-int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        printUsage(argv[0]);
-        return 1;
+    int main(int argc, char* argv[]) {
+        if (argc != 2) {
+            printUsage(argv[0]);
+            return 1;
+        }
+        
+        std::cout << "=== UserlandVM-HIT (32-bit) ===" << std::endl;
+        std::cout << "Cargando programa Haiku: " << argv[1] << std::endl;
+        
+        GuestMemory memory;
+        X86_32Interpreter interpreter(memory);
+        
+        uint32_t entryPoint;
+        bool needsDynamic;
+        if (!interpreter.LoadELF(argv[1], entryPoint, needsDynamic)) {
+            std::cerr << "Error: No se pudo cargar el programa ELF" << std::endl;
+            return 1;
+        }
+        
+        std::cout << "Punto de entrada: 0x" << std::hex << entryPoint << std::dec << std::endl;
+        std::cout << "Dynamic linking requerido: " << (needsDynamic ? "SÍ" : "NO") << std::endl;
+        std::cout << "Iniciando ejecución..." << std::endl;
+        
+        if (needsDynamic) {
+            std::cout << "⚠️  ESTE PROGRAMA NECESITA ENLACE DINÁMICO" << std::endl;
+            std::cout << "       UserlandVM-HIT solo tiene soporte básico PT_INTERP" << std::endl;
+            std::cout << "       Requiere implementación completa para ejecutar" << std::endl;
+        }
+        
+        if (!interpreter.Run(entryPoint)) {
+            std::cerr << "Error: Falló la ejecución" << std::endl;
+            return 1;
+        }
+        
+        std::cout << "Ejecución completada" << std::endl;
+        return 0;
     }
     
     std::cout << "=== UserlandVM-HIT (32-bit) ===" << std::endl;
@@ -381,12 +430,13 @@ int main(int argc, char* argv[]) {
     X86_32Interpreter interpreter(memory);
     
     uint32_t entryPoint;
-    if (!interpreter.LoadELF(argv[1], entryPoint)) {
+    if (!interpreter.LoadELF(argv[1], entryPoint, needsDynamic)) {
         std::cerr << "Error: No se pudo cargar el programa ELF" << std::endl;
         return 1;
     }
     
     std::cout << "Punto de entrada: 0x" << std::hex << entryPoint << std::dec << std::endl;
+    std::cout << "Dynamic linking requerido: " << (needsDynamic ? "SÍ" : "NO") << std::endl;
     std::cout << "Iniciando ejecución..." << std::endl;
     
     if (!interpreter.Run(entryPoint)) {
