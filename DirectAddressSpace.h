@@ -13,23 +13,10 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/types.h>
+#include <OS.h>
 
-// Standard type definitions for cross-platform compatibility
-typedef uint32_t addr_t;
-typedef uint32_t area_id;
-
-// Include our interfaces
 #include "AddressSpace.h"
-
-// Use standard POSIX includes instead of Haiku-specific
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/mman.h>
-#include <pthread.h>
-#include <algorithm>
+#include <SupportDefs.h>
 
 // Implementación de AddressSpace que usa un área de memoria contigua
 // con páginas de guarda para el espacio de direcciones del invitado.
