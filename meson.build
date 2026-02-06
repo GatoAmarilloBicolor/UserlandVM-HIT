@@ -92,10 +92,12 @@ executable(
 	# Haiku platform components
 	'platform/haiku/system/Haiku32SyscallDispatcher.cpp',
 	'platform/haiku/system/HaikuRuntimeLoader.cpp',
+	'platform/haiku/system/HaikuKernelDirect.cpp',
 	'platform/haiku/memory/HaikuAddressSpace.cpp',
 	'platform/haiku/gui/HaikuGUISyscalls.cpp',
 	'platform/haiku/gui/HaikuGUIBackend.cpp',
 	'platform/haiku/gui/HaikuGUIStub.cpp',
+	'platform/haiku/gui/HaikuNativeGUI.cpp',
 	include_directories: [
 		# Core headers
 		'.',
