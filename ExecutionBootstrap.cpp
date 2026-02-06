@@ -8,6 +8,7 @@
 #include "Haiku32SyscallDispatcher.h"
 #include "RealDynamicLinker.h"
 #include "ELFImage.h"
+#include "UserlandVM.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
