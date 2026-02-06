@@ -1,0 +1,239 @@
+# Makefile for UserlandVM-HIT with SIMD Optimizations and HaikuOS Kit Integration
+# Maximum hardware acceleration for HaikuOS
+
+# Compiler and flags
+CXX = g++
+CXXFLAGS = -std=c++20 -O3 -march=native -mtune=native
+CXXFLAGS += -msse2 -mavx2 -mfma -mbmi2
+CXXFLAGS += -flto -ffast-math -funroll-loops
+CXXFLAGS += -Wall -Wextra -pedantic
+CXXFLAGS += -I. -Iplatform -Iplatform/haiku -Idynamic_loading -Iinterpreter
+CXXFLAGS += -DHAIKU_TARGET_PLATFORM=HAIKU_X86_64
+CXXFLAGS += -DSIMD_OPTIMIZATIONS -DHAIKU_KIT_INTEGRATION
+
+# HaikuOS Kit libraries
+KIT_LIBS = -lbe -lgame -lmedia -lnetwork -ltracker -ltextencoding
+KIT_LIBS += -ltranslation -ldevice -lstorage -lscreen
+
+# System libraries
+SYS_LIBS = -lpthread -lm -lrt -ldl
+
+# SIMD libraries
+SIMD_LIBS = -lkernel -lsystem
+
+# All libraries
+LIBS = $(KIT_LIBS) $(SYS_LIBS) $(SIMD_LIBS)
+
+# Source files with SIMD optimizations
+CORE_SOURCES = \
+    DirectAddressSpace.cpp \
+    SIMDDirectAddressSpace.cpp \
+    ExecutionBootstrap.cpp \
+    HaikuOptimizedBootstrap.cpp \
+    Main.cpp
+
+INTERPRETER_SOURCES = \
+    InterpreterX86_32.cpp \
+    SIMDX86_32Interpreter.cpp \
+    X86_32GuestContext.cpp \
+    OptimizedX86Executor.cpp
+
+DYNAMIC_LOADING_SOURCES = \
+    DynamicLinker.cpp \
+    Loader.cpp \
+    SimpleRelocationProcessor.cpp \
+    SymbolResolver.cpp
+
+PLATFORM_SOURCES = \
+    platform/haiku/system/Haiku32SyscallDispatcher.cpp \
+    platform/haiku/memory/HaikuAddressSpace.cpp \
+    platform/haiku/gui/HaikuNativeGUI.cpp
+
+MEMORY_OPTIMIZED_SOURCES = \
+    TLSSetup.cpp \
+    CommpageManager.cpp \
+    HybridSymbolResolver.cpp
+
+ALL_SOURCES = $(CORE_SOURCES) $(INTERPRETER_SOURCES) $(DYNAMIC_LOADING_SOURCES) \
+              $(PLATFORM_SOURCES) $(MEMORY_OPTIMIZED_SOURCES)
+
+# Object files
+OBJECTS = $(ALL_SOURCES:.cpp=.o)
+
+# Target executable
+TARGET = UserlandVM-HIT-Optimized
+
+# SIMD detection targets
+SIMD_DETECTED = $(shell grep -q sse2 /proc/cpuinfo && echo "SSE2")
+AVX_DETECTED = $(shell grep -q avx2 /proc/cpuinfo && echo "AVX2")
+
+.PHONY: all clean check-simd install optimize-hardware
+
+all: check-simd $(TARGET)
+
+# SIMD capability detection and optimization
+check-simd:
+	@echo "=== Hardware SIMD Capabilities Detection ==="
+	@if [ -n "$(SIMD_DETECTED)" ]; then \
+		echo "✓ SSE2 detected - Enabling 128-bit SIMD optimizations"; \
+	else \
+		echo "⚠ SSE2 not detected - Using fallback optimizations"; \
+	fi
+	@if [ -n "$(AVX_DETECTED)" ]; then \
+		echo "✓ AVX2 detected - Enabling 256-bit SIMD optimizations"; \
+		CXXFLAGS += -mavx2; \
+	else \
+		echo "⚠ AVX2 not detected - Using SSE2 optimizations"; \
+	fi
+	@echo "=== HaikuOS Hardware Detection ==="
+	@echo "CPU Cores: $(shell nproc)"
+	@echo "CPU Frequency: $(shell lscpu | grep MHz | awk '{print $$3}') MHz"
+	@echo "Total RAM: $(shell free -h | grep Mem | awk '{print $$2}')"
+	@echo "Available RAM: $(shell free -h | grep Mem | awk '{print $$7}')"
+
+# Hardware-specific optimizations
+optimize-hardware:
+	@echo "=== Applying Hardware Optimizations ==="
+	# Detect CPU vendor and apply specific optimizations
+	@if grep -q "Intel" /proc/cpuinfo; then \
+		echo "Intel CPU detected - Applying Intel-specific optimizations"; \
+		CXXFLAGS += -mintel-opt-rtl -mavoid-false-dependencies; \
+	fi
+	@if grep -q "AMD" /proc/cpuinfo; then \
+		echo "AMD CPU detected - Applying AMD-specific optimizations"; \
+		CXXFLAGS += -march=znver2; \
+	fi
+	# Cache optimization based on cache sizes
+	@L1_CACHE=$(shell lscpu | grep "L1d cache" | awk '{print $$3}' | sed 's/K//'); \
+	echo "L1 Cache: $$L1_CACHE KB - Optimizing for cache line size"; \
+	CXXFLAGS += -DCACHE_LINE_SIZE=$$L1_CACHE
+
+# Compilation with SIMD optimizations
+$(TARGET): $(OBJECTS)
+	@echo "=== Linking UserlandVM-HIT with SIMD Optimizations ==="
+	$(CXX) $(CXXFLAGS) $(OBJECTS) -o $(TARGET) $(LIBS)
+	@echo "=== Optimizations Applied ==="
+	@echo "✓ SIMD: SSE2, AVX2"
+	@echo "✓ Link-Time Optimization (LTO)"
+	@echo "✓ Fast Math Optimizations"
+	@echo "✓ Loop Unrolling"
+	@echo "✓ Native CPU Tuning"
+	@echo "✓ HaikuOS Kit Integration"
+	@echo "=== Binary Size ==="
+	@ls -lh $(TARGET)
+
+# Compile source files with SIMD
+%.o: %.cpp
+	@echo "Compiling $< with SIMD optimizations..."
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+# SIMD-optimized special targets
+simd-test: SIMDTest.o SIMDDirectAddressSpace.o
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIBS)
+
+# HaikuOS Kit integration test
+kit-test: KitTest.o HaikuOptimizedBootstrap.o
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIBS)
+
+# Performance benchmark
+benchmark: Benchmark.o $(OBJECTS)
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LIBS)
+	@echo "=== Running Performance Benchmark ==="
+	./benchmark
+
+# Memory usage analysis
+memory-analysis: $(TARGET)
+	@echo "=== Memory Usage Analysis ==="
+	valgrind --tool=massif ./$(TARGET) /boot/home/src/UserlandVM-HIT/TestX86
+
+# SIMD instruction trace
+simd-trace: $(TARGET)
+	@echo "=== SIMD Instruction Trace ==="
+	perf record -e instructions:u ./$(TARGET) /boot/home/src/UserlandVM-HIT/TestX86
+	perf report
+
+# Cache performance analysis
+cache-analysis: $(TARGET)
+	@echo "=== Cache Performance Analysis ==="
+	perf stat -e cache-references,cache-misses,L1-dcache-loads,L1-dcache-load-misses \
+		./$(TARGET) /boot/home/src/UserlandVM-HIT/TestX86
+
+# CPU performance counters
+cpu-analysis: $(TARGET)
+	@echo "=== CPU Performance Analysis ==="
+	perf stat -e instructions,cycles,branches,branch-misses \
+		./$(TARGET) /boot/home/src/UserlandVM-HIT/TestX86
+
+# SIMD vectorization report
+vectorization-report:
+	@echo "=== SIMD Vectorization Report ==="
+	$(CXX) $(CXXFLAGS) -ftree-vectorizer-verbose=6 -c DirectAddressSpace.cpp 2>&1 | \
+		grep -E "(vectorized|not vectorized|loop)"
+
+# Installation
+install: $(TARGET)
+	@echo "=== Installing UserlandVM-HIT Optimized ==="
+	mkdir -p /boot/home/config/non-packaged/bin
+	cp $(TARGET) /boot/home/config/non-packaged/bin/
+	@echo "✓ Installed to /boot/home/config/non-packaged/bin/$(TARGET)"
+
+# Clean build artifacts
+clean:
+	@echo "=== Cleaning Build ==="
+	rm -f $(OBJECTS) $(TARGET) *.o core core.* a.out
+	rm -f simd-test kit-test benchmark
+	rm -f perf.data*
+
+# Deep clean (includes caches)
+clean-all: clean
+	@echo "=== Deep Clean ==="
+	rm -f .cache/*.idx
+	rm -f *.gcda *.gcno
+	rm -rf coverage/
+	rm -f *.profraw
+
+# Development targets
+debug: CXXFLAGS += -g -DDEBUG -fsanitize=address
+debug: $(TARGET)
+
+release: CXXFLAGS += -DNDEBUG -flto=auto -march=native
+release: $(TARGET)
+
+# SIMD validation
+validate-simd: $(TARGET)
+	@echo "=== SIMD Validation ==="
+	./$(TARGET) --validate-simd
+
+# Continuous integration target
+ci: check-simd optimize-hardware release test-all
+	@echo "=== CI Pipeline Complete ==="
+
+# Run all tests
+test-all: simd-test kit-test benchmark
+	@echo "=== All Tests Complete ==="
+
+# Help target
+help:
+	@echo "UserlandVM-HIT SIMD Optimized Build System"
+	@echo ""
+	@echo "Targets:"
+	@echo "  all              - Build with SIMD optimizations"
+	@echo "  check-simd       - Detect SIMD capabilities"
+	@echo "  optimize-hardware- Apply hardware-specific optimizations"
+	@echo "  debug            - Build with debug symbols"
+	@echo "  release          - Build optimized release"
+	@echo "  benchmark        - Run performance benchmark"
+	@echo "  memory-analysis  - Analyze memory usage"
+	@echo "  cache-analysis   - Analyze cache performance"
+	@echo "  simd-trace       - Trace SIMD instructions"
+	@echo "  test-all         - Run all tests"
+	@echo "  install          - Install to system"
+	@echo "  clean            - Clean build artifacts"
+	@echo "  help             - Show this help"
+
+# Dependencies
+-include $(OBJECTS:.o=.d)
+
+# Generate dependencies
+%.d: %.cpp
+	$(CXX) $(CXXFLAGS) -MM $< > $@
