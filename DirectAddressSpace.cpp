@@ -57,19 +57,8 @@ DirectAddressSpace::Init(size_t size)
 	fGuestBaseAddress = (addr_t)memoryBase;
 	fGuestSize = size;
 	
-	printf("[HAIKU] Created guest memory area: id=%ld, base=%p, size=%zu\n", 
+	printf("[HAIKU] Created guest memory area: id=%d, base=%p, size=%zu\n", 
 		guestArea, memoryBase, size);
-
-	return B_OK;
-}
-	
-	fArea = guestArea;
-	fGuestBaseAddress = (addr_t)memoryBase;
-	fGuestSize = size;
-	
-	printf("[HAIKU] Created guest memory area: id=%ld, base=%p, size=%zu\n", 
-		guestArea, memoryBase, size);
-	}
 
 	return B_OK;
 }
@@ -80,31 +69,21 @@ DirectAddressSpace::Read(uintptr_t guestAddress, void* buffer, size_t size)
 	if (!buffer)
 		return B_BAD_VALUE;
 	
-	// Debug
-	static int call_count = 0;
-	if (call_count < 3) {
-		printf("[DirectAddressSpace::Read] Entry: addr=0x%lx, size=%zu, fUseDirectMemory=%d\n", 
-			guestAddress, size, fUseDirectMemory);
-		fflush(stdout);
-		call_count++;
-	}
-	
-	// If using direct memory mode, guest addresses are direct host pointers
+	// If using direct memory mode, guest addresses are direct offsets into guest memory
 	if (fUseDirectMemory) {
-		// In direct memory mode, guestAddress is a host pointer (64-bit on 64-bit hosts)
-		// Sanity check: address should be > 1MB (reasonable for loaded code)
-		if (guestAddress < 0x100000) {
-			printf("[DirectAddressSpace::Read] ERROR: Invalid address 0x%lx (too low for code)\n", guestAddress);
-			fflush(stdout);
+		// In direct memory mode, guestAddress is a guest virtual address that maps directly
+		// to an offset in the allocated guest memory
+		if (guestAddress + size > fGuestSize) {
+			printf("[DirectAddressSpace::Read] ERROR: Address out of bounds in direct mode: guestAddr=0x%lx, size=%zu, guestSize=0x%lx\n",
+				guestAddress, size, fGuestSize);
 			return B_BAD_VALUE;
 		}
-		uintptr_t hostAddr = guestAddress;
-		uint8_t* source = (uint8_t*)hostAddr;
+		uint8_t* source = (uint8_t*)fGuestBaseAddress + guestAddress;
 		memcpy(buffer, source, size);
 		return B_OK;
 	}
 	
-	// Translate virtual address to offset
+	// Translate virtual address to offset using mappings
 	uintptr_t offset = TranslateAddress(guestAddress);
 	
 	// Check bounds: offset + size must not exceed fGuestSize
@@ -155,11 +134,16 @@ DirectAddressSpace::Write(uintptr_t guestAddress, const void* buffer, size_t siz
 	if (!buffer)
 		return B_BAD_VALUE;
 	
-	// If using direct memory mode, treat guest address as direct host pointer
+	// If using direct memory mode, guest addresses are direct offsets into guest memory
 	if (fUseDirectMemory) {
-		// In direct memory mode, guestAddress is a host pointer (64-bit on 64-bit hosts)
-		uintptr_t hostAddr = guestAddress;
-		uint8_t* dest = (uint8_t*)hostAddr;
+		// In direct memory mode, guestAddress is a guest virtual address that maps directly
+		// to an offset in the allocated guest memory
+		if (guestAddress + size > fGuestSize) {
+			printf("[DirectAddressSpace::Write] ERROR: Address out of bounds in direct mode: guestAddr=0x%lx, size=%zu, guestSize=0x%lx\n",
+				guestAddress, size, fGuestSize);
+			return B_BAD_VALUE;
+		}
+		uint8_t* dest = (uint8_t*)fGuestBaseAddress + guestAddress;
 		memcpy(dest, buffer, size);
 		return B_OK;
 	}
