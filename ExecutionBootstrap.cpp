@@ -1,15 +1,10 @@
 #include "ExecutionBootstrap.h"
-#include "VirtualCpuX86Native.h"
-#include "X86_32GuestContext.h"
-#include "InterpreterX86_32.h"
-#include "platform/haiku/system/Haiku32SyscallDispatcher.h"
 #include "DirectAddressSpace.h"
-#include "DynamicLinker.h"
+#include "Haiku32SyscallDispatcher.h"
+#include "ELFImage.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <elf.h>
-#include <sys/mman.h>
 
 ExecutionBootstrap::ExecutionBootstrap()
     : fExecutionEngine(nullptr),
@@ -32,19 +27,19 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath, char **argv
 {
     printf("[ExecutionBootstrap] Starting program execution: %s\n", programPath);
     
-    // Initialize dynamic linker for dynamic binaries
-    DynamicLinker dynamicLinker;
-    dynamicLinker.SetSearchPath("sysroot/haiku32/system/lib");
-    
     // Load ELF binary
-    ObjectDeleter<ElfImage> image(ElfImage::Load(programPath));
-    if (!image.IsSet()) {
+    ElfImage* image = ElfImage::Load(programPath);
+    if (!image) {
         fprintf(stderr, "[ExecutionBootstrap] Failed to load ELF binary: %s\n", programPath);
         return -1;
     }
     
     const char *arch = image->GetArchString();
     printf("[ExecutionBootstrap] Detected architecture: %s\n", arch ? arch : "unknown");
+    
+    // Initialize dynamic linker for dynamic binaries
+    DynamicLinker dynamicLinker;
+    dynamicLinker.SetSearchPath("sysroot/haiku32/lib");
     
     // Check if this is a dynamic binary and load dependencies
     if (image->IsDynamic()) {
@@ -56,16 +51,16 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath, char **argv
     
     fflush(stdout);
     
-    // For now, use VirtualCpuX86Test for x86 execution
+    // For now, use x86-32 interpreter execution
     if (arch && strcmp(arch, "x86") == 0) {
         printf("[ExecutionBootstrap] Using x86-32 interpreter execution\n");
         fflush(stdout);
         
         // Create address space with large guest memory
-        // Allocate 2GB for guest (covers 0x08000000 - ~0xc0000000 on 32-bit)
         void *guestMemory = malloc(0x80000000);  // 2GB
         if (!guestMemory) {
             fprintf(stderr, "[ExecutionBootstrap] Failed to allocate guest memory\n");
+            delete image;
             return -1;
         }
         
@@ -79,7 +74,7 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath, char **argv
         // Create x86-32 guest context
         X86_32GuestContext context(addressSpace);
         
-        // Load program image into guest memory
+        // Load program into guest memory
         printf("[ExecutionBootstrap] Loading program into guest memory...\n");
         fflush(stdout);
         
@@ -87,6 +82,8 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath, char **argv
         FILE *f = fopen(programPath, "rb");
         if (!f) {
             fprintf(stderr, "[ExecutionBootstrap] Failed to open program file\n");
+            delete image;
+            free(guestMemory);
             return -1;
         }
         
@@ -95,39 +92,37 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath, char **argv
         size_t fileSize = ftell(f);
         fseek(f, 0, SEEK_SET);
         
-        // Read ELF header
-        Elf32_Ehdr ehdr;
-        if (fread(&ehdr, sizeof(ehdr), 1, f) != 1) {
-            fprintf(stderr, "[ExecutionBootstrap] Failed to read ELF header\n");
-            fclose(f);
-            return -1;
-        }
+        // Read ELF header to get entry point
+        const Elf32_Ehdr& ehdr = image->GetHeader();
+        uint32_t entryPoint = ehdr.e_entry;
         
         // Allocate guest memory for program
         uint32_t programBase = 0x08048000;  // Standard x86-32 code base
         uint8_t *programBuffer = new uint8_t[fileSize];
         
-        // Rewind and read entire program
+        // Read entire program
         fseek(f, 0, SEEK_SET);
         if (fread(programBuffer, fileSize, 1, f) != 1) {
             fprintf(stderr, "[ExecutionBootstrap] Failed to read program\n");
             fclose(f);
             delete[] programBuffer;
+            delete image;
+            free(guestMemory);
             return -1;
         }
         fclose(f);
         
         // Write program directly to guest memory
-        // Since we're using direct memory access, guest addresses are direct pointers
         printf("[ExecutionBootstrap] Writing program to guest memory at 0x%08x (size=0x%lx)\n", 
                programBase, fileSize);
         
-        // In direct memory mode, guest address is a direct pointer offset into guest memory
-        // The base address 0x08048000 maps to offset (0x08048000 - 0x0) in guest memory
+        // In direct memory mode, guest address is a direct pointer offset
         uint32_t guestOffset = programBase;  // Direct mapping
         if (guestOffset + fileSize > 0x80000000) {
             fprintf(stderr, "[ExecutionBootstrap] Program would exceed guest memory bounds\n");
             delete[] programBuffer;
+            delete image;
+            free(guestMemory);
             return -1;
         }
         
@@ -138,13 +133,12 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath, char **argv
         delete[] programBuffer;
         
         // Set up stack in guest memory
-        // Note: We allocated 2GB (0x80000000) so stack must fit within this
         uint32_t stackBase = 0x70000000;  // Stack base (high in guest memory)
         uint32_t stackSize = 0x10000;     // 64KB stack
         
         // Initialize context registers
         auto& regs = context.Registers();
-        regs.eip = ehdr.e_entry;  // Entry point from ELF header
+        regs.eip = entryPoint;  // Entry point from ELF header
         regs.esp = stackBase + stackSize - 4;  // Stack pointer at top of stack
         regs.ebp = regs.esp;
         regs.eax = 0;
@@ -155,20 +149,11 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath, char **argv
         regs.edi = 0;
         regs.eflags = 0x202;  // IF and IOPL bits
         
-        // Don't set 64-bit EIP - use guest address space instead
-        // context.SetEIP64((uintptr_t)image->GetEntry());
-        
-        printf("[ExecutionBootstrap] Program entry point: 0x%08x (64-bit: 0x%lx)\n", regs.eip, context.GetEIP64());
+        printf("[ExecutionBootstrap] Program entry point: 0x%08x\n", regs.eip);
         printf("[ExecutionBootstrap] Stack pointer: 0x%08x\n", regs.esp);
         
         // Create interpreter
         InterpreterX86_32 interpreter(addressSpace, dispatcher);
-        
-        // For dynamic binaries, we need to set up symbol resolution
-        if (image->IsDynamic()) {
-            printf("[ExecutionBootstrap] Setting up symbol resolution for dynamic binary\n");
-            // TODO: Integrate dynamic linker with interpreter for symbol resolution
-        }
         
         // Execute
         printf("[ExecutionBootstrap] Executing program...\n");
@@ -176,9 +161,15 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath, char **argv
         status_t status = interpreter.Run(context);
         
         printf("[ExecutionBootstrap] Execution completed with status: %d\n", status);
+        
+        // Cleanup
+        delete image;
+        free(guestMemory);
+        
         return status;
     }
     
     fprintf(stderr, "[ExecutionBootstrap] Unsupported architecture: %s\n", arch ? arch : "unknown");
+    delete image;
     return -1;
 }

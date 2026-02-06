@@ -4,9 +4,7 @@
 #include <string>
 #include <vector>
 #include <cstdint>
-#include <dlfcn.h>
-#include <link.h>
-#include "Loader.h"
+#include "ELFImage.h"
 
 struct LibraryInfo {
     void* handle = nullptr;

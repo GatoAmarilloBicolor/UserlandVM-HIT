@@ -9,13 +9,49 @@
 #define _SUPPORTDEFS_H
 
 #include <stdint.h>
+#include <sys/types.h>
 
-// Use system types when available to avoid conflicts
+// Haiku-style type definitions - use system types to avoid conflicts
+#ifdef __HAIKU__
+#include <SupportDefs.h>
+#else
+// For non-Haiku systems
 typedef int32_t status_t;
-typedef uintptr_t addr_t;  // Use pointer-sized type for addresses
-typedef uintptr_t phys_addr_t;
+typedef uintptr_t addr_t;
+typedef uintptr_t phys_addr_t;  
 typedef uintptr_t vm_addr_t;
 typedef size_t vm_size_t;
+typedef int32_t area_id;
+typedef int32_t team_id;
+#endif
+
+// Common status codes
+#ifndef B_OK
+#define B_OK 0
+#define B_ERROR (-1)
+#define B_NO_MEMORY (-2)
+#define B_BAD_VALUE (-3)
+#define B_ENTRY_NOT_FOUND (-6)
+#define B_NAME_IN_USE (-15)
+#endif
+
+// Common area flags
+#ifndef B_READ_AREA
+#define B_READ_AREA 0x01
+#define B_WRITE_AREA 0x02
+#define B_READ_WRITE (B_READ_AREA | B_WRITE_AREA)
+#define B_NO_LOCK 0x00
+#define B_ANY_ADDRESS 0x01
+#endif
+
+// Cleanup macro
+#ifndef delete_area
+#ifdef __HAIKU__
+#define delete_area(area) delete_area(area)
+#else  
+#define delete_area(area) do { (void)(area); } while(0)
+#endif
+#endif
 
 #endif
 

@@ -6,9 +6,6 @@
  */
 
 #include "DynamicLinker.h"
-#include "HybridSymbolResolver.h"
-#include <dlfcn.h>
-#include <link.h>
 #include <cstring>
 #include <algorithm>
 #include <vector>
@@ -28,9 +25,6 @@ DynamicLinker::DynamicLinker() {
 DynamicLinker::~DynamicLinker() {
     // Cleanup all loaded libraries
     for (auto& [name, info] : fLibraries) {
-        if (info.handle) {
-            dlclose(info.handle);
-        }
         if (info.elf_image) {
             delete info.elf_image;
         }
@@ -50,195 +44,251 @@ ElfImage* DynamicLinker::LoadLibrary(const char* path) {
         return it->second.elf_image;
     }
 
-    printf("[DYNAMIC] Loading library: %s\n", path);
-
-    // Try to load with system dynamic loader first
-    void* handle = dlopen(path, RTLD_LAZY | RTLD_LOCAL);
-    if (!handle) {
-        char* error = dlerror();
-        printf("[DYNAMIC] Failed to load %s: %s\n", path, error ? error : "Unknown error");
+    // Load the ELF file using our ELFImage class
+    ElfImage* image = ElfImage::Load(path);
+    if (!image) {
+        printf("[DYNAMIC] Failed to load library: %s\n", path);
         return nullptr;
     }
 
     // Store library info
     LibraryInfo info;
-    info.handle = handle;
+    info.elf_image = image;
+    info.handle = nullptr;  // We don't use dlopen for our ELF loading
+    info.base_address = nullptr;  // Will be set during relocation
+    info.size = 0;  // Will be calculated
     info.loaded = true;
-    info.elf_image = nullptr; // Not used when using system loader
     info.reference_count = 1;
-    info.base_address = nullptr;
-    info.size = 0;
     
     fLibraries[lib_name] = info;
-    printf("[DYNAMIC] Successfully loaded %s\n", lib_name.c_str());
-    return nullptr; // Image not available when using system loader
+    printf("[DYNAMIC] Successfully loaded library: %s\n", path);
+    
+    return image;
 }
 
 bool DynamicLinker::FindSymbol(const char* name, void** address, size_t* size) {
     if (!name || !address) return false;
-
-    // First try hybrid symbol resolution
-    static HybridSymbolResolver hybridResolver;
-    if (hybridResolver.ResolveSymbol(name, address, size)) {
-        printf("[DYNAMIC] Symbol '%s' resolved via HYBRID resolver\n", name);
-        return true;
-    }
-
-    // Fallback to original method
-    printf("[DYNAMIC] Symbol '%s' not found via HYBRID, trying original method\n", name);
     
     // Search in all loaded libraries
-    for (const auto& [lib_name, info] : fLibraries) {
-        if (!info.loaded || !info.handle) continue;
-
-        void* sym_addr = dlsym(info.handle, name);
-        if (sym_addr) {
-            printf("[DYNAMIC] Found symbol '%s' in %s at %p\n", name, lib_name.c_str(), sym_addr);
-            *address = sym_addr;
-            if (size) *size = 0; // Size not available through dlsym
-            return true;
+    for (auto& [lib_name, info] : fLibraries) {
+        if (!info.elf_image || !info.loaded) continue;
+        
+        // Search in symbol table
+        const Elf32_Sym* symbols = info.elf_image->GetSymbolTable();
+        const char* str_table = info.elf_image->GetStringTable();
+        uint32_t symbol_count = info.elf_image->GetSymbolCount();
+        
+        for (uint32_t i = 0; i < symbol_count; i++) {
+            const char* symbol_name = str_table + symbols[i].st_name;
+            
+            if (strcmp(symbol_name, name) == 0) {
+                *address = (void*)(uintptr_t)symbols[i].st_value;
+                if (size) *size = symbols[i].st_size;
+                
+                printf("[DYNAMIC] Found symbol %s in library %s at address %p\n", 
+                       name, lib_name.c_str(), *address);
+                return true;
+            }
         }
     }
-
-    printf("[DYNAMIC] Symbol '%s' not found in any loaded library\n", name);
+    
+    printf("[DYNAMIC] Symbol not found: %s\n", name);
     return false;
 }
 
 ElfImage* DynamicLinker::GetLibrary(const char* name) {
     if (!name) return nullptr;
     
-    std::string lib_name = GetLibraryName(name);
-    auto it = fLibraries.find(lib_name);
+    auto it = fLibraries.find(name);
     if (it != fLibraries.end() && it->second.loaded) {
         return it->second.elf_image;
     }
+    
     return nullptr;
 }
 
 void DynamicLinker::SetSearchPath(const char* path) {
-    if (path) {
-        fSearchPaths.insert(fSearchPaths.begin(), path);
-        printf("[DYNAMIC] Added search path: %s\n", path);
-    }
+    fSearchPaths.clear();
+    fSearchPaths.push_back(std::string(path));
+    printf("[DYNAMIC] Set search path to: %s\n", path);
 }
 
 void DynamicLinker::AddLibrary(const char* name, ElfImage* image) {
-    if (name && image) {
-        std::string lib_name = name;
-        
-        LibraryInfo info;
-        info.handle = nullptr; // Not used for ELF images
-        info.elf_image = image;
-        info.loaded = true;
-        info.reference_count = 1;
-        info.base_address = nullptr;
-        info.size = 0;
-        
-        fLibraries[lib_name] = info;
-        printf("[DYNAMIC] Added ELF library: %s\n", name);
-    }
+    if (!name || !image) return;
+    
+    LibraryInfo info;
+    info.elf_image = image;
+    info.handle = nullptr;
+    info.base_address = nullptr;
+    info.size = 0;
+    info.loaded = true;
+    info.reference_count = 1;
+    
+    fLibraries[std::string(name)] = info;
+    printf("[DYNAMIC] Added library: %s\n", name);
 }
 
 bool DynamicLinker::LoadDynamicDependencies(const char* program_path) {
-    printf("[DYNAMIC] Loading dynamic dependencies for: %s\n", program_path);
-
-    // Load critical Haiku libraries first
-    if (!LoadCriticalLibraries()) {
-        printf("[DYNAMIC] Failed to load critical libraries\n");
+    if (!program_path) return false;
+    
+    printf("[DYNAMIC] Loading dependencies for: %s\n", program_path);
+    
+    // Load program ELF first
+    ElfImage* program = ElfImage::Load(program_path);
+    if (!program) {
+        printf("[DYNAMIC] Failed to load program: %s\n", program_path);
         return false;
     }
-
-    printf("[DYNAMIC] Dependency loading complete\n");
+    
+    // Get dynamic section
+    const Elf32_Dyn* dynamic = program->GetDynamicSection();
+    if (!dynamic) {
+        printf("[DYNAMIC] No dynamic section found in program\n");
+        return false;
+    }
+    
+    // Load required libraries (DT_NEEDED entries)
+    const char* str_table = program->GetDynamicStringTable();
+    if (!str_table) {
+        printf("[DYNAMIC] No dynamic string table found\n");
+        return false;
+    }
+    
+    for (uint32_t i = 0; dynamic[i].d_tag != DT_NULL; i++) {
+        if (dynamic[i].d_tag == DT_NEEDED) {
+            const char* lib_name = str_table + dynamic[i].d_val;
+            
+            // Try to find library in search paths
+            bool loaded = false;
+            for (const std::string& search_path : fSearchPaths) {
+                std::string full_path = search_path + "/" + std::string(lib_name);
+                
+                if (LoadLibrary(full_path.c_str())) {
+                    loaded = true;
+                    break;
+                }
+            }
+            
+            if (!loaded) {
+                printf("[DYNAMIC] Failed to load required library: %s\n", lib_name);
+                return false;
+            }
+        }
+    }
+    
+    printf("[DYNAMIC] Successfully loaded all dependencies\n");
     return true;
 }
 
 std::vector<std::string> DynamicLinker::GetDynamicDependencies(const char* program_path) {
     std::vector<std::string> dependencies;
     
-    // For now, return common Haiku dependencies
-    // In a real implementation, we would parse ELF dynamic section
-    dependencies.push_back("sysroot/haiku32/system/libroot.so");
-    dependencies.push_back("sysroot/haiku32/system/libbe.so");
-    dependencies.push_back("sysroot/haiku32/system/libbsd.so");
+    ElfImage* program = ElfImage::Load(program_path);
+    if (!program) {
+        return dependencies;
+    }
     
+    const Elf32_Dyn* dynamic = program->GetDynamicSection();
+    const char* str_table = program->GetDynamicStringTable();
+    
+    if (dynamic && str_table) {
+        for (uint32_t i = 0; dynamic[i].d_tag != DT_NULL; i++) {
+            if (dynamic[i].d_tag == DT_NEEDED) {
+                dependencies.push_back(std::string(str_table + dynamic[i].d_val));
+            }
+        }
+    }
+    
+    delete program;
     return dependencies;
 }
 
 bool DynamicLinker::LoadCriticalLibraries() {
-    printf("[DYNAMIC] Loading critical Haiku libraries\n");
-    
-    // Essential Haiku libraries
+    // Load essential Haiku libraries
     const char* critical_libs[] = {
-        "sysroot/haiku32/system/libroot.so",
-        "sysroot/haiku32/system/libbe.so"
+        "libroot.so",
+        "libbe.so", 
+        "libbsd.so",
+        "libnetwork.so",
+        "libmedia.so",
+        nullptr
     };
     
-    bool success = true;
-    for (const char* lib_path : critical_libs) {
-        if (!LoadLibrary(lib_path)) {
-            printf("[DYNAMIC] Warning: Failed to load critical library: %s\n", lib_path);
-            // Continue anyway for now
+    for (int i = 0; critical_libs[i]; i++) {
+        bool loaded = false;
+        
+        for (const std::string& search_path : fSearchPaths) {
+            std::string full_path = search_path + "/" + critical_libs[i];
+            
+            if (LoadLibrary(full_path.c_str())) {
+                loaded = true;
+                break;
+            }
+        }
+        
+        if (!loaded) {
+            printf("[DYNAMIC] Warning: Failed to load critical library: %s\n", critical_libs[i]);
         }
     }
     
-    return success;
+    return true;
 }
 
 std::string DynamicLinker::ResolveLibraryPath(const char* name) {
     if (!name) return "";
-
-    // Check if it's an absolute path
-    if (name[0] == '/') {
-        return name;
-    }
-
-    // Try each search path
-    for (const auto& search_path : fSearchPaths) {
-        std::string full_path = search_path + "/" + name;
-        
-        // Check if file exists
-        FILE* file = fopen(full_path.c_str(), "rb");
-        if (file) {
-            fclose(file);
+    
+    // Try all search paths
+    for (const std::string& search_path : fSearchPaths) {
+        std::string full_path = search_path + "/" + std::string(name);
+        FILE* test = fopen(full_path.c_str(), "rb");
+        if (test) {
+            fclose(test);
             return full_path;
         }
-        
-        // Try with .so extension
-        std::string so_path = full_path + ".so";
-        file = fopen(so_path.c_str(), "rb");
-        if (file) {
-            fclose(file);
-            return so_path;
-        }
     }
-
-    return name; // Not found
+    
+    return "";
 }
 
 bool DynamicLinker::IsLibraryLoaded(const char* name) const {
     if (!name) return false;
     
-    std::string lib_name = GetLibraryName(name);
-    auto it = fLibraries.find(lib_name);
+    auto it = fLibraries.find(std::string(name));
     return (it != fLibraries.end() && it->second.loaded);
 }
 
 std::vector<std::string> DynamicLinker::GetLoadedLibraries() const {
-    std::vector<std::string> libraries;
+    std::vector<std::string> loaded;
     
     for (const auto& [name, info] : fLibraries) {
         if (info.loaded) {
-            libraries.push_back(name);
+            loaded.push_back(name);
         }
     }
     
-    return libraries;
+    return loaded;
 }
 
-// Private helper methods
-
 ElfImage* DynamicLinker::FindInLibraries(const char* name) {
-    return GetLibrary(name);
+    if (!name) return nullptr;
+    
+    for (auto& [lib_name, info] : fLibraries) {
+        if (!info.elf_image || !info.loaded) continue;
+        
+        const Elf32_Sym* symbols = info.elf_image->GetSymbolTable();
+        const char* str_table = info.elf_image->GetStringTable();
+        uint32_t symbol_count = info.elf_image->GetSymbolCount();
+        
+        for (uint32_t i = 0; i < symbol_count; i++) {
+            const char* symbol_name = str_table + symbols[i].st_name;
+            
+            if (strcmp(symbol_name, name) == 0) {
+                return info.elf_image;
+            }
+        }
+    }
+    
+    return nullptr;
 }
 
 std::string DynamicLinker::ResolveLibPath(const char* name) {
@@ -248,37 +298,26 @@ std::string DynamicLinker::ResolveLibPath(const char* name) {
 std::string DynamicLinker::GetLibraryName(const char* path) const {
     if (!path) return "";
     
-    const char* name = strrchr(path, '/');
-    if (name) {
-        name++; // Skip '/'
-    } else {
-        name = path;
+    std::string full_path(path);
+    
+    // Find the last '/' character
+    size_t last_slash = full_path.find_last_of('/');
+    if (last_slash != std::string::npos) {
+        return full_path.substr(last_slash + 1);
     }
     
-    return name;
+    return full_path;
 }
 
 ElfImage* DynamicLinker::LoadLibraryELF(const char* path) {
-    printf("[DYNAMIC] Fallback: Loading with custom ELF loader\n");
-    
-    // Use existing ELF loader as fallback
     return ElfImage::Load(path);
 }
 
 bool DynamicLinker::FindSymbolInELF(const char* name, void** address, size_t* size) {
-    // Search in ELF images that were loaded with our custom loader
-    for (const auto& [lib_name, info] : fLibraries) {
-        if (info.elf_image) {
-            if (info.elf_image->FindSymbol(name, address, size)) {
-                printf("[DYNAMIC] Found ELF symbol '%s' in %s\n", name, lib_name.c_str());
-                return true;
-            }
-        }
-    }
-    return false;
+    return FindSymbol(name, address, size);
 }
 
 size_t DynamicLinker::GetSymbolSize(void* handle, const char* name) {
-    // Try to get symbol size (simplified - not available through dladdr)
+    // For simplicity, return 0 for now
     return 0;
 }
