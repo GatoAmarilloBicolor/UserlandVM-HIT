@@ -73,6 +73,31 @@ ElfImage* ElfImage::Load(const char* path) {
         }
     }
     
+    // Load PT_INTERP if present
+    image->fInterpreterPath = nullptr;
+    for (uint32_t i = 0; i < image->fHeader.e_phnum; i++) {
+        if (image->fProgramHeaders[i].p_type == PT_INTERP) {
+            size_t path_size = image->fProgramHeaders[i].p_filesz;
+            image->fInterpreterPath = (char*)malloc(path_size + 1);
+            if (!image->fInterpreterPath) {
+                printf("[ELF] Failed to allocate interpreter path\n");
+                continue;
+            }
+            
+            fseek(file, image->fProgramHeaders[i].p_offset, SEEK_SET);
+            if (fread(image->fInterpreterPath, path_size, 1, file) != 1) {
+                printf("[ELF] Failed to read interpreter path\n");
+                free(image->fInterpreterPath);
+                image->fInterpreterPath = nullptr;
+                continue;
+            }
+            
+            image->fInterpreterPath[path_size] = '\0';
+            printf("[ELF] PT_INTERP loaded: %s\n", image->fInterpreterPath);
+            break;
+        }
+    }
+    
     // Load section headers
     if (image->fHeader.e_shnum > 0) {
         size_t sh_size = image->fHeader.e_shnum * sizeof(Elf32_Shdr);
@@ -293,5 +318,19 @@ void ElfImage::Cleanup() {
         fDynamicSection = nullptr;
     }
     
+    if (fInterpreterPath) {
+        free(fInterpreterPath);
+        fInterpreterPath = nullptr;
+    }
+    
     fIsLoaded = false;
+}
+
+// PT_INTERP support implementation
+bool ElfImage::HasInterpreter() const {
+    return fInterpreterPath != nullptr;
+}
+
+const char* ElfImage::GetInterpreterPath() const {
+    return fInterpreterPath;
 }

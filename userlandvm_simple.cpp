@@ -84,7 +84,8 @@ class X86_32Interpreter {
 private:
     struct Registers {
         uint32_t eax, ebx, ecx, edx;
-        uint32_t esi, edi, ebp, esp;
+        uint32_t esi, edi, ebp;
+        uint32_t esp;
         uint32_t eip;
         uint32_t eflags;
     } regs;
@@ -95,6 +96,20 @@ public:
     X86_32Interpreter(GuestMemory& mem) : memory(mem) {
         std::memset(&regs, 0, sizeof(regs));
         regs.esp = 0x70000000; // Stack al final de memoria
+    }
+    
+    uint32_t GetRegister32(uint8_t reg) {
+        switch (reg) {
+            case 0: return regs.eax;
+            case 1: return regs.ecx;
+            case 2: return regs.edx;
+            case 3: return regs.ebx;
+            case 4: return regs.esp;
+            case 5: return regs.ebp;
+            case 6: return regs.esi;
+            case 7: return regs.edi;
+            default: return 0;
+        }
     }
     
     bool LoadELF(const std::string& filename, uint32_t& entryPoint) {
@@ -184,15 +199,17 @@ private:
         
         // Implementación básica de algunas instrucciones clave
         switch (opcode) {
-            case 0xB8: // MOV EAX, imm32
-                if (!memory.Read(regs.eip, &regs.eax, 4)) regs.eip = 0;
+            case 0xB8: case 0xB9: case 0xBA: case 0xBB: // MOV reg32, imm32
+            case 0xBC: case 0xBD: case 0xBE: case 0xBF: {
+                uint8_t reg_dest = opcode - 0xB8;
+                uint32_t imm_value;
+                if (!memory.Read(regs.eip, &imm_value, 4)) { regs.eip = 0; return; }
                 else regs.eip += 4;
+                SetRegister32(reg_dest, imm_value);
                 break;
+            }
                 
-            case 0xBB: // MOV EBX, imm32
-                if (!memory.Read(regs.eip, &regs.ebx, 4)) regs.eip = 0;
-                else regs.eip += 4;
-                break;
+
                 
             case 0xC3: // RET
                 if (!memory.Read(regs.esp, &regs.eip, 4)) regs.eip = 0;
@@ -221,8 +238,61 @@ private:
                 regs.eip++;
                 
                 if (int_num == 0x80) { // Linux syscall (usaremos para Haiku syscalls)
-                    HandleSyscall();
+                    HandleHaikuSyscall();
                 }
+                break;
+            }
+            
+            case 0x89: { // MOV r/m32, r32
+                uint8_t modrm;
+                if (!memory.Read(regs.eip, &modrm, 1)) { regs.eip = 0; return; }
+                regs.eip++;
+                
+                uint8_t reg_src = (modrm >> 3) & 7;
+                // Solo handle MOV reg, reg por ahora
+                if ((modrm & 0xC0) == 0xC0) {
+                    uint8_t reg_dest = modrm & 7;
+                    uint32_t src = GetRegister32(reg_src);
+                    SetRegister32(reg_dest, src);
+                } else {
+                    regs.eip++; // Skip complex addressing
+                }
+                break;
+            }
+            
+            case 0x8B: { // MOV r32, r/m32
+                uint8_t modrm;
+                if (!memory.Read(regs.eip, &modrm, 1)) { regs.eip = 0; return; }
+                regs.eip++;
+                
+                uint8_t reg = (modrm >> 3) & 7;
+                // Solo handle MOV reg, reg por ahora
+                if ((modrm & 0xC0) == 0xC0) {
+                    uint8_t rm = modrm & 7;
+                    uint32_t src = GetRegister32(rm);
+                    SetRegister32(reg, src);
+                } else {
+                    regs.eip++; // Skip complex addressing
+                }
+                break;
+            }
+            
+            case 0x50: case 0x51: case 0x52: case 0x53: // PUSH reg32
+            case 0x54: case 0x55: case 0x56: case 0x57: {
+                uint8_t opcode = opcode - 0x50;
+                uint32_t value = GetRegister32(opcode);
+                regs.esp -= 4;
+                if (!memory.Write(regs.esp, &value, 4)) { regs.eip = 0; return; }
+                break;
+            }
+            
+            case 0x58: case 0x59: case 0x5A: case 0x5B: // POP reg32
+            case 0x5C: case 0x5D: case 0x5E: case 0x5F: {
+                uint8_t opcode = opcode - 0x58;
+                uint32_t value;
+                if (!memory.Read(regs.esp, &value, 4)) { regs.eip = 0; return; }
+                SetRegister32(opcode, value);
+                regs.esp += 4;
                 break;
             }
             
@@ -239,6 +309,52 @@ private:
             case 3: regs.ebx = value; break;
             case 1: regs.ecx = value; break;
             case 2: regs.edx = value; break;
+            case 4: regs.esp = value; break;
+            case 5: regs.ebp = value; break;
+            case 6: regs.esi = value; break;
+            case 7: regs.edi = value; break;
+        }
+    }
+    
+    void HandleHaikuSyscall() {
+        uint32_t syscall_num = regs.eax;
+        
+        printf("[SYSCALL] syscall %d (ebx=0x%x, ecx=0x%x, edx=0x%x)\n", 
+               syscall_num, regs.ebx, regs.ecx, regs.edx);
+        
+        switch (syscall_num) {
+            case 1: // Haiku exit syscall
+                printf("[SYSCALL] exit(%d)\n", regs.ebx);
+                regs.eip = 0; // Stop execution
+                break;
+                
+            case 4: // Haiku write syscall  
+                {
+                    uint32_t fd = regs.ebx;
+                    uint32_t buf = regs.ecx;
+                    uint32_t count = regs.edx;
+                    
+                    printf("[SYSCALL] write(fd=%d, buf=0x%x, count=%d)\n", fd, buf, count);
+                    
+                    // Simple implementation - write to stdout
+                    if (fd == 1 || fd == 2) {
+                        char* data = new char[count + 1];
+                        if (memory.Read(buf, data, count)) {
+                            data[count] = '\0';
+                            printf("%s", data);
+                        }
+                        delete[] data;
+                        regs.eax = count; // bytes written
+                    } else {
+                        regs.eax = -1; // error
+                    }
+                    break;
+                }
+                
+            default:
+                printf("[SYSCALL] unsupported syscall %d\n", syscall_num);
+                regs.eax = -1; // ENOSYS
+                break;
         }
     }
     

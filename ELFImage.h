@@ -92,6 +92,7 @@ typedef struct {
 #define PT_NULL 0
 #define PT_LOAD 1
 #define PT_DYNAMIC 2
+#define PT_INTERP 3
 
 #define PF_R 0x4
 #define PF_W 0x2
@@ -147,6 +148,10 @@ public:
     uint32_t GetSymbolCount() const;
     const char* GetSymbolName(uint32_t index) const;
     
+    // PT_INTERP support
+    bool HasInterpreter() const;
+    const char* GetInterpreterPath() const;
+    
 private:
     FILE* fFile;
     Elf32_Ehdr fHeader;
@@ -156,6 +161,7 @@ private:
     char* fDynamicStringTable;
     Elf32_Sym* fSymbolTable;
     Elf32_Dyn* fDynamicSection;
+    char* fInterpreterPath;
     
     uint32_t fSymbolCount;
     bool fIsLoaded;

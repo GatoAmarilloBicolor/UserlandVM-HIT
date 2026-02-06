@@ -161,6 +161,19 @@ template <typename Class> void ElfImageImpl<Class>::LoadSegments() {
       fflush(stdout);
       break;
     }
+    case PT_INTERP: {
+      printf("[ELF] Found PT_INTERP at vaddr=%#" B_PRIx64 "\n",
+             (uint64)phdr.p_vaddr);
+      
+      // Read interpreter path
+      const char* interp_path = (const char*)FromVirt(phdr.p_vaddr);
+      printf("[ELF] Interpreter: %s\n", interp_path);
+      
+      // Store interpreter path for later use
+      fInterpreterPath = interp_path;
+      break;
+    }
+    
     case PT_DYNAMIC: {
       printf("[ELF] Found PT_DYNAMIC at vaddr=%#" B_PRIx64 "\n",
              (uint64)phdr.p_vaddr);
