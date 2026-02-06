@@ -60,8 +60,8 @@ executable(
 	# Core components
 	'Loader.cpp',
 	'Syscalls.cpp',
-	'DynamicLinker.cpp',
-	'RelocationProcessor.cpp',
+	# 'DynamicLinker.cpp',  # TODO: Incomplete implementations
+	# 'RelocationProcessor.cpp',  # TODO: Requires DynamicLinker
 	'DirectAddressSpace.cpp',
 	'CommpageManager.cpp',
 	'TLSSetup.cpp',

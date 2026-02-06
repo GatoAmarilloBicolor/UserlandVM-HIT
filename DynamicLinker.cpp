@@ -282,7 +282,7 @@ std::vector<std::string> DynamicLinker::GetLoadedLibraries() const {
     return libraries;
 }
 
-void DynamicLinker::ClearSymbolCache() {
-    // Clear any caches
-    printf("[DYNAMIC] Symbol cache cleared\n");
-}
+// void DynamicLinker::ClearSymbolCache() {
+//     // Clear any caches
+//     printf("[DYNAMIC] Symbol cache cleared\n");
+// }
