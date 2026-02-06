@@ -4,6 +4,7 @@
 #include "InterpreterX86_32.h"
 #include "platform/haiku/system/Haiku32SyscallDispatcher.h"
 #include "DirectAddressSpace.h"
+#include "DynamicLinker.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,6 +32,10 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath, char **argv
 {
     printf("[ExecutionBootstrap] Starting program execution: %s\n", programPath);
     
+    // Initialize dynamic linker for dynamic binaries
+    DynamicLinker dynamicLinker;
+    dynamicLinker.SetSearchPath("sysroot/haiku32/system/lib");
+    
     // Load ELF binary
     ObjectDeleter<ElfImage> image(ElfImage::Load(programPath));
     if (!image.IsSet()) {
@@ -40,6 +45,15 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath, char **argv
     
     const char *arch = image->GetArchString();
     printf("[ExecutionBootstrap] Detected architecture: %s\n", arch ? arch : "unknown");
+    
+    // Check if this is a dynamic binary and load dependencies
+    if (image->IsDynamic()) {
+        printf("[ExecutionBootstrap] Dynamic binary detected, loading dependencies...\n");
+        if (!dynamicLinker.LoadDynamicDependencies(programPath)) {
+            printf("[ExecutionBootstrap] Warning: Failed to load some dependencies, continuing anyway\n");
+        }
+    }
+    
     fflush(stdout);
     
     // For now, use VirtualCpuX86Test for x86 execution
@@ -149,6 +163,12 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath, char **argv
         
         // Create interpreter
         InterpreterX86_32 interpreter(addressSpace, dispatcher);
+        
+        // For dynamic binaries, we need to set up symbol resolution
+        if (image->IsDynamic()) {
+            printf("[ExecutionBootstrap] Setting up symbol resolution for dynamic binary\n");
+            // TODO: Integrate dynamic linker with interpreter for symbol resolution
+        }
         
         // Execute
         printf("[ExecutionBootstrap] Executing program...\n");

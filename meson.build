@@ -60,7 +60,7 @@ executable(
 	# Core components
 	'Loader.cpp',
 	'Syscalls.cpp',
-	# 'DynamicLinker.cpp',  # TODO: Incomplete implementations
+	'DynamicLinker.cpp',  # Simplified implementation
 	# 'RelocationProcessor.cpp',  # TODO: Requires DynamicLinker
 	'DirectAddressSpace.cpp',
 	'CommpageManager.cpp',
@@ -106,11 +106,10 @@ executable(
 		# Platform headers
 		'platform',
 		'platform/haiku',
-		'compat',
 		'dynamic_loading',
 		'interpreter',
 		
-		# System Haiku headers (if on Haiku)
+		# System Haiku headers
 		'/boot/system/develop/headers',
 		'/boot/system/develop/headers/os',
 		'/boot/system/develop/headers/private',
