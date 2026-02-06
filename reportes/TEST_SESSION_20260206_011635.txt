@@ -1,0 +1,24 @@
+================================================================================
+USERLANDVM-HIT TEST SESSION REPORT
+Date: vie feb  6 01:16:35 GMT-5 2026
+Commit: 2c25618
+Build: 1,2M
+================================================================================
+
+TEST MATRIX:
+Status      | Program     | Notes
+============================================================================
+⚠️ EXECUTED | TestX86 | exit:10 | runtime:0m0,165s | lines:71 | EIP:0x8000000a
+⏱️ TIMEOUT_5s | echo | EIP:0x00027ef0 | lines:169381 | bytes:11628056
+⏱️ TIMEOUT_5s | ls | EIP:0x00031e1a | lines:194769 | bytes:13371511
+⏱️ TIMEOUT_5s | pwd | EIP:0x0002e21a | lines:194090 | bytes:13325028
+⏱️ TIMEOUT_5s | cat | EIP:0x0002d8dc | lines:190149 | bytes:13054368
+⏱️ TIMEOUT_5s | head | EIP:0x0002e44c | lines:191582 | bytes:13152788
+⏱️ TIMEOUT_5s | ps | EIP:0x00026788 | lines:171142 | bytes:11748619
+⏱️ TIMEOUT_5s | df | EIP:0x0002b07c | lines:190774 | bytes:13096789
+⏱️ TIMEOUT_5s | uname | EIP:0x0002d484 | lines:192918 | bytes:13244511
+⏱️ TIMEOUT_5s | wc | EIP:0x0002b79c | lines:177940 | bytes:12215709
+⏱️ TIMEOUT_5s | grep | EIP:0x00030ba0 | lines:187338 | bytes:12860918
+⏱️ TIMEOUT_5s | listdev | EIP:0x000a5bec | lines:174804 | bytes:12000139
+⏱️ TIMEOUT_5s | sort | EIP:0x00030b18 | lines:185284 | bytes:12720277
+================================================================================
