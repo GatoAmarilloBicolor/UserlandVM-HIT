@@ -66,18 +66,74 @@ DirectAddressSpace::Init(size_t size)
 status_t
 DirectAddressSpace::Read(uintptr_t guestAddress, void* buffer, size_t size)
 {
-	if (!buffer)
+	if (!buffer || !fGuestBaseAddress || !fGuestSize)
 		return B_BAD_VALUE;
+	
+	// Enhanced safety: Validate inputs before processing
+	if (size == 0)
+		return B_OK;
+	
+	// Bounds check first - prevent overflow in all calculations
+	if (guestAddress > fGuestSize - size) {
+		printf("[DirectAddressSpace::Read] ERROR: Address+size overflow: guestAddr=0x%lx, size=%zu, guestSize=0x%lx\n",
+			guestAddress, size, fGuestSize);
+		return B_BAD_VALUE;
+	}
 	
 	// If using direct memory mode, guest addresses are direct offsets into guest memory
 	if (fUseDirectMemory) {
 		// In direct memory mode, guestAddress is a guest virtual address that maps directly
-		// to an offset in the allocated guest memory
-		if (guestAddress + size > fGuestSize) {
-			printf("[DirectAddressSpace::Read] ERROR: Address out of bounds in direct mode: guestAddr=0x%lx, size=%zu, guestSize=0x%lx\n",
+		// to an offset in allocated guest memory
+		if (guestAddress > fGuestSize - size) {
+			printf("[DirectAddressSpace::Read] ERROR: Direct mode overflow: guestAddr=0x%lx, size=%zu, guestSize=0x%lx\n",
 				guestAddress, size, fGuestSize);
 			return B_BAD_VALUE;
 		}
+		
+		// Safe pointer arithmetic: ensure we don't overflow
+		uintptr_t safe_end = guestAddress + size;
+		if (safe_end < guestAddress) { // Overflow detection
+			printf("[DirectAddressSpace::Read] ERROR: Integer overflow in address calculation\n");
+			return B_BAD_VALUE;
+		}
+		
+		uint8_t* source = (uint8_t*)fGuestBaseAddress + guestAddress;
+		if ((uintptr_t)source < (uintptr_t)fGuestBaseAddress || 
+			(uintptr_t)source + size > (uintptr_t)fGuestBaseAddress + fGuestSize) {
+			printf("[DirectAddressSpace::Read] ERROR: Source pointer out of bounds\n");
+			return B_BAD_VALUE;
+		}
+		
+		memcpy(buffer, source, size);
+		return B_OK;
+	}
+	
+	// Translate virtual address to offset using mappings
+	uintptr_t offset = TranslateAddress(guestAddress);
+	
+	// Enhanced bounds checking with better error messages
+	if (offset == (uintptr_t)-1) {
+		printf("[DirectAddressSpace::Read] ERROR: Unmapped address: guestAddr=0x%08x\n", guestAddress);
+		return B_BAD_VALUE;
+	}
+	
+	if (offset + size > fGuestSize) {
+		printf("[DirectAddressSpace::Read] ERROR: Offset overflow: offset=0x%lx, size=%zu, guestSize=0x%lx\n",
+			offset, size, fGuestSize);
+		return B_BAD_VALUE;
+	}
+	
+	// Additional validation: ensure destination buffer is valid if applicable
+	uint8_t* dest = (uint8_t*)fGuestBaseAddress + offset;
+	if ((uintptr_t)dest < (uintptr_t)fGuestBaseAddress || 
+		(uintptr_t)dest + size > (uintptr_t)fGuestBaseAddress + fGuestSize) {
+		printf("[DirectAddressSpace::Read] ERROR: Destination out of bounds\n");
+		return B_BAD_VALUE;
+	}
+	
+	memcpy(buffer, dest, size);
+	return B_OK;
+}
 		uint8_t* source = (uint8_t*)fGuestBaseAddress + guestAddress;
 		memcpy(buffer, source, size);
 		return B_OK;
@@ -131,18 +187,79 @@ DirectAddressSpace::ReadString(uintptr_t guestAddress, char* buffer, size_t buff
 status_t
 DirectAddressSpace::Write(uintptr_t guestAddress, const void* buffer, size_t size)
 {
-	if (!buffer)
+	if (!buffer || !fGuestBaseAddress || !fGuestSize)
 		return B_BAD_VALUE;
+	
+	// Enhanced safety: Validate inputs before processing
+	if (size == 0)
+		return B_OK;
+	
+	// Bounds check first - prevent overflow in all calculations
+	if (guestAddress > fGuestSize - size) {
+		printf("[DirectAddressSpace::Write] ERROR: Address+size overflow: guestAddr=0x%lx, size=%zu, guestSize=0x%lx\n",
+			guestAddress, size, fGuestSize);
+		return B_BAD_VALUE;
+	}
 	
 	// If using direct memory mode, guest addresses are direct offsets into guest memory
 	if (fUseDirectMemory) {
 		// In direct memory mode, guestAddress is a guest virtual address that maps directly
-		// to an offset in the allocated guest memory
-		if (guestAddress + size > fGuestSize) {
-			printf("[DirectAddressSpace::Write] ERROR: Address out of bounds in direct mode: guestAddr=0x%lx, size=%zu, guestSize=0x%lx\n",
+		// to an offset in allocated guest memory
+		if (guestAddress > fGuestSize - size) {
+			printf("[DirectAddressSpace::Write] ERROR: Direct mode overflow: guestAddr=0x%lx, size=%zu, guestSize=0x%lx\n",
 				guestAddress, size, fGuestSize);
 			return B_BAD_VALUE;
 		}
+		
+		// Safe pointer arithmetic: ensure we don't overflow
+		uintptr_t safe_end = guestAddress + size;
+		if (safe_end < guestAddress) { // Overflow detection
+			printf("[DirectAddressSpace::Write] ERROR: Integer overflow in address calculation\n");
+			return B_BAD_VALUE;
+		}
+		
+		const uint8_t* source = (const uint8_t*)buffer;
+		uint8_t* dest = (uint8_t*)fGuestBaseAddress + guestAddress;
+		
+		// Validate both pointers before copying
+		if ((uintptr_t)dest < (uintptr_t)fGuestBaseAddress || 
+			(uintptr_t)dest + size > (uintptr_t)fGuestBaseAddress + fGuestSize) {
+			printf("[DirectAddressSpace::Write] ERROR: Destination out of bounds\n");
+			return B_BAD_VALUE;
+		}
+		
+		memcpy(dest, source, size);
+		return B_OK;
+	}
+	
+	// Translate virtual address to offset using mappings
+	uintptr_t offset = TranslateAddress(guestAddress);
+	
+	// Enhanced bounds checking with better error messages
+	if (offset == (uintptr_t)-1) {
+		printf("[DirectAddressSpace::Write] ERROR: Unmapped address: guestAddr=0x%08x\n", guestAddress);
+		return B_BAD_VALUE;
+	}
+	
+	if (offset + size > fGuestSize) {
+		printf("[DirectAddressSpace::Write] ERROR: Offset overflow: offset=0x%lx, size=%zu, guestSize=0x%lx\n",
+			offset, size, fGuestSize);
+		return B_BAD_VALUE;
+	}
+	
+	const uint8_t* source = (const uint8_t*)buffer;
+	uint8_t* dest = (uint8_t*)fGuestBaseAddress + offset;
+	
+	// Validate both pointers before copying
+	if ((uintptr_t)dest < (uintptr_t)fGuestBaseAddress || 
+		(uintptr_t)dest + size > (uintptr_t)fGuestBaseAddress + fGuestSize) {
+		printf("[DirectAddressSpace::Write] ERROR: Destination out of bounds\n");
+		return B_BAD_VALUE;
+	}
+	
+	memcpy(dest, source, size);
+	return B_OK;
+}
 		uint8_t* dest = (uint8_t*)fGuestBaseAddress + guestAddress;
 		memcpy(dest, buffer, size);
 		return B_OK;
