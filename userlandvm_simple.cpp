@@ -345,6 +345,24 @@ private:
                 regs.eip = 0; // Stop execution
                 break;
                 
+            case 3: // Haiku read syscall
+                {
+                    uint32_t fd = regs.ebx;
+                    uint32_t buf = regs.ecx;
+                    uint32_t count = regs.edx;
+                    
+                    printf("[SYSCALL] read(fd=%d, buf=0x%x, count=%d)\n", fd, buf, count);
+                    
+                    if (fd == 0) { // stdin
+                        regs.eax = 0; // EOF por ahora
+                    } else if (fd == 1 || fd == 2) { // stdout/stderr - no se puede leer
+                        regs.eax = -1; // error
+                    } else {
+                        regs.eax = -1; // error por ahora
+                    }
+                    break;
+                }
+                
             case 4: // Haiku write syscall  
                 {
                     uint32_t fd = regs.ebx;
@@ -353,18 +371,56 @@ private:
                     
                     printf("[SYSCALL] write(fd=%d, buf=0x%x, count=%d)\n", fd, buf, count);
                     
-                    // Simple implementation - write to stdout
-                    if (fd == 1 || fd == 2) {
+                    if (fd == 1 || fd == 2) { // stdout/stderr
                         char* data = new char[count + 1];
                         if (memory.Read(buf, data, count)) {
-                            data[count] = '\0';
-                            printf("%s", data);
+                            fwrite(data, 1, count, stdout);
+                            regs.eax = count; // bytes written
+                        } else {
+                            regs.eax = -1; // error
                         }
                         delete[] data;
-                        regs.eax = count; // bytes written
+                    } else {
+                        regs.eax = count; // simulado exitoso
+                    }
+                    break;
+                }
+                
+            case 5: // Haiku open syscall
+                {
+                    uint32_t pathname = regs.ebx;
+                    uint32_t flags = regs.ecx;
+                    uint32_t mode = regs.edx;
+                    
+                    printf("[SYSCALL] open(pathname=0x%x, flags=0x%x, mode=0x%x)\n", pathname, flags, mode);
+                    
+                    char path_buffer[256];
+                    if (memory.Read(pathname, path_buffer, 255)) {
+                        path_buffer[255] = '\0';
+                        printf("[SYSCALL] Opening file: %s\n", path_buffer);
+                        regs.eax = 3; // dummy fd (3,4,5...)
                     } else {
                         regs.eax = -1; // error
                     }
+                    break;
+                }
+                
+            case 6: // Haiku close syscall
+                {
+                    uint32_t fd = regs.ebx;
+                    printf("[SYSCALL] close(fd=%d)\n", fd);
+                    regs.eax = 0; // success
+                    break;
+                }
+                
+            case 19: // Haiku lseek syscall
+                {
+                    uint32_t fd = regs.ebx;
+                    uint32_t offset = regs.ecx;
+                    uint32_t whence = regs.edx;
+                    
+                    printf("[SYSCALL] lseek(fd=%d, offset=0x%x, whence=%d)\n", fd, offset, whence);
+                    regs.eax = 0; // position 0
                     break;
                 }
                 
@@ -391,18 +447,7 @@ void printUsage(const char* program) {
             return 1;
         }
         
-        std::cout << "=== UserlandVM-HIT (32-bit) ===" << std::endl;
-        std::cout << "Cargando programa Haiku: " << argv[1] << std::endl;
-        
-        GuestMemory memory;
-        X86_32Interpreter interpreter(memory);
-        
-        uint32_t entryPoint;
-        bool needsDynamic;
-        if (!interpreter.LoadELF(argv[1], entryPoint, needsDynamic)) {
-            std::cerr << "Error: No se pudo cargar el programa ELF" << std::endl;
-            return 1;
-        }
+}
         
         std::cout << "Punto de entrada: 0x" << std::hex << entryPoint << std::dec << std::endl;
         std::cout << "Dynamic linking requerido: " << (needsDynamic ? "SÍ" : "NO") << std::endl;
@@ -423,17 +468,7 @@ void printUsage(const char* program) {
         return 0;
     }
     
-    std::cout << "=== UserlandVM-HIT (32-bit) ===" << std::endl;
-    std::cout << "Cargando programa Haiku: " << argv[1] << std::endl;
-    
-    GuestMemory memory;
-    X86_32Interpreter interpreter(memory);
-    
-    uint32_t entryPoint;
-    if (!interpreter.LoadELF(argv[1], entryPoint, needsDynamic)) {
-        std::cerr << "Error: No se pudo cargar el programa ELF" << std::endl;
-        return 1;
-    }
+
     
     std::cout << "Punto de entrada: 0x" << std::hex << entryPoint << std::dec << std::endl;
     std::cout << "Dynamic linking requerido: " << (needsDynamic ? "SÍ" : "NO") << std::endl;
