@@ -493,6 +493,25 @@ bool ElfImageImpl<Class>::FindSymbol(const char *name, void **adr,
   return false;
 }
 
+template <typename Class>
+bool ElfImageImpl<Class>::ReadMemory(uint32_t addr, void* buffer, size_t size) {
+  if (!buffer || size == 0) {
+    return false;
+  }
+  
+  // Check if address is within image bounds
+  void* src = FromVirt(addr);
+  void* image_end = (void*)((intptr_t)fBase + fSize);
+  
+  if (src < fBase || (void*)((intptr_t)src + size) > image_end) {
+    printf("[ELF] ReadMemory: Address 0x%08x out of bounds\n", addr);
+    return false;
+  }
+  
+  memcpy(buffer, src, size);
+  return true;
+}
+
 template class ElfImageImpl<Elf32Class>;
 template class ElfImageImpl<Elf64Class>;
 

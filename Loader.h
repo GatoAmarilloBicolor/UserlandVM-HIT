@@ -48,6 +48,16 @@ public:
 	virtual bool FindSymbol(const char *name, void **adr, size_t *size) = 0;
 	virtual const char *GetPath() = 0;
 	virtual bool IsDynamic() = 0;
+	
+	// New methods for enhanced dynamic loading
+	virtual uint32_t GetProgramHeaderCount() = 0;
+	virtual uint32_t GetProgramHeaderOffset() = 0;
+	virtual uint32_t GetProgramHeaderType(uint32_t index) = 0;
+	virtual uint32_t GetProgramHeaderVirtAddr(uint32_t index) = 0;
+	virtual uint32_t GetProgramHeaderFileSize(uint32_t index) = 0;
+	virtual uint32_t GetProgramHeaderAlign(uint32_t index) = 0;
+	virtual uint32_t GetProgramHeaderSize() = 0;
+	virtual bool ReadMemory(uint32_t addr, void* buffer, size_t size) = 0;
 };
 
 template <typename Class>
@@ -94,4 +104,14 @@ public:
 	bool FindSymbol(const char *name, void **adr, size_t *size) override;
 	const char *GetPath() override {return fPath.Get();}
 	bool IsDynamic() override {return fIsDynamic;}
+	
+	// Enhanced methods implementation
+	uint32_t GetProgramHeaderCount() override {return fHeader.e_phnum;}
+	uint32_t GetProgramHeaderOffset() override {return fHeader.e_phoff;}
+	uint32_t GetProgramHeaderType(uint32_t index) override {return fPhdrs[index].p_type;}
+	uint32_t GetProgramHeaderVirtAddr(uint32_t index) override {return fPhdrs[index].p_vaddr;}
+	uint32_t GetProgramHeaderFileSize(uint32_t index) override {return fPhdrs[index].p_filesz;}
+	uint32_t GetProgramHeaderAlign(uint32_t index) override {return fPhdrs[index].p_align;}
+	uint32_t GetProgramHeaderSize() override {return fHeader.e_phentsize;}
+	bool ReadMemory(uint32_t addr, void* buffer, size_t size) override;
 };

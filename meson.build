@@ -81,6 +81,14 @@ executable(
 	'FloatingPointUnit.cpp',
 	'OptimizedX86Executor.cpp',
 	
+	# Enhanced dynamic loading components
+	'dynamic_loading/ProgramHeaderParser.cpp',
+	'dynamic_loading/SymbolResolver.cpp',
+	'dynamic_loading/CompleteRelocationProcessor.cpp',
+	
+	# Enhanced interpreter with recycled syscalls
+	'interpreter/RecycledSyscalls.cpp',
+	
 	# Haiku platform components
 	'platform/haiku/system/Haiku32SyscallDispatcher.cpp',
 	'platform/haiku/system/HaikuRuntimeLoader.cpp',
@@ -106,6 +114,8 @@ executable(
 		'platform',
 		'platform/haiku',
 		'compat',
+		'dynamic_loading',
+		'interpreter',
 		
 		# System Haiku headers (if on Haiku)
 		# Commented out for non-Haiku builds
