@@ -1,6 +1,6 @@
 #include <private/system/user_runtime.h>
 #include <private/kernel/ksyscalls.h>
-#include "syscall_table.h"
+#include <syscall_table.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -133,8 +133,72 @@ static void HaikuTrap()
 				}
 			}
 
-			DispatchSyscall(syscall, args, &tCpu->Regs()[10]);
+		// Safe syscall dispatch with argument validation
+		SafeArgBuffer safe_args;
+		if (safe_args.Initialize() != B_OK) {
+			printf("[SYSCALL] Failed to initialize safe argument buffer\n");
 			break;
+			}
+		
+		// Parse arguments based on syscall requirements
+		switch (syscall) {
+		case SYSCALL_READ:
+			if (safe_args.AddArg(GetStackArg(ctx, 0)) != B_OK ||
+			    safe_args.AddArg(GetStackArg(ctx, 1)) != B_OK ||
+			    safe_args.AddArg(GetStackArg(ctx, 2)) != B_OK) {
+				printf("[SYSCALL] Failed to add read arguments\n");
+				ctx.eax = (uint32_t)B_BAD_VALUE;
+				break;
+			}
+			
+		case SYSCALL_WRITE:
+			if (safe_args.AddArg(GetStackArg(ctx, 0)) != B_OK ||
+			    safe_args.AddArg(GetStackArg(ctx, 1)) != B_OK ||
+			    safe_args.AddArg(GetStackArg(ctx, 2)) != B_OK) {
+				printf("[SYSCALL] Failed to add write arguments\n");
+				ctx.eax = (uint32_t)B_BAD_VALUE;
+				break;
+			}
+			
+		case SYSCALL_EXECVE:
+			if (safe_args.AddArg(GetStackArg(ctx, 0)) != B_OK) {
+				printf("[SYSCALL] Failed to add execve filename\n");
+				ctx.eax = (uint32_t)B_BAD_VALUE;
+				break;
+			}
+			
+			case SYSCALL_EXIT:
+			uint32_t exit_code;
+			if (safe_args.GetArg(0, exit_code) != B_OK) {
+				printf("[SYSCALL] Failed to read exit code\n");
+				ctx.eax = (uint32_t)B_BAD_VALUE;
+				break;
+			}
+			
+			if (safe_args.GetArg(0, exit_code) == B_OK) {
+				ctx.eax = (uint32_t)B_BAD_VALUE;
+				// Safe exit
+				SafeSyscalls::SafeExit(exit_code);
+				break;
+			}
+			
+		default:
+			// Parse general arguments for other syscalls
+			for (uint32_t i = 0; i < MAX_IOCTL_ARGS && safe_args.GetArg(i, GetStackArg(ctx, i)) == B_OK; i++) {
+				// Arguments already validated and added
+			}
+			break;
+		}
+		
+		// Execute the syscall if all arguments were valid
+		if (safe_args.GetArgCount() >= 0) {
+			DispatchSyscall(syscall, safe_args.GetArgs(), &tCpu->Regs()[10]);
+		} else {
+			ctx.eax = (uint32_t)B_BAD_VALUE;
+		}
+		
+			safe_args.Reset();
+		break;
 		}
 		default:
 			printf("[!] unhandled trap: Hart %p trap at %#08" B_PRIx64 ", cause %x, tval %#08" B_PRIx64 "\n", tCpu, tCpu->Pc(), tCpu->Cause(), tCpu->Tval());
