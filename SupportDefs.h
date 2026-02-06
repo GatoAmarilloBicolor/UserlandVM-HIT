@@ -3,14 +3,21 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-// Basic Haiku type definitions for Linux compatibility
+// Basic Haiku type definitions for HaikuOS compatibility
+// Note: Avoid conflicts with system types
+#ifndef _SUPPORTDEFS_H
+#define _SUPPORTDEFS_H
+
+#include <stdint.h>
+
+// Use system types when available to avoid conflicts
 typedef int32_t status_t;
-// typedef int32_t ssize_t;  // Use system ssize_t
-typedef uint32_t addr_t;
-typedef uint32_t phys_addr_t;
-typedef uint32_t vm_addr_t;
-typedef uint32_t vm_size_t;
-// typedef uint64_t off_t;  // Use system off_t
+typedef uintptr_t addr_t;  // Use pointer-sized type for addresses
+typedef uintptr_t phys_addr_t;
+typedef uintptr_t vm_addr_t;
+typedef size_t vm_size_t;
+
+#endif
 
 // Common status codes
 #define B_OK 0
