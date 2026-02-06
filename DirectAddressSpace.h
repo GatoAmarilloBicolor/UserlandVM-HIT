@@ -13,10 +13,13 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/types.h>
-#include <OS.h>
+// #include <OS.h>  // Commented out for Linux compatibility
 
 #include "AddressSpace.h"
-#include <SupportDefs.h>
+#include "SupportDefs.h"
+
+// Forward declarations for compatibility
+typedef int32_t area_id;
 
 // Implementación de AddressSpace que usa un área de memoria contigua
 // con páginas de guarda para el espacio de direcciones del invitado.

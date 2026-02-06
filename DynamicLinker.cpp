@@ -6,6 +6,9 @@
  */
 
 #include "DynamicLinker.h"
+#include "HybridSymbolResolver.h"
+#include <dlfcn.h>
+#include <link.h>
 #include <cstring>
 #include <algorithm>
 #include <vector>
@@ -74,6 +77,16 @@ ElfImage* DynamicLinker::LoadLibrary(const char* path) {
 bool DynamicLinker::FindSymbol(const char* name, void** address, size_t* size) {
     if (!name || !address) return false;
 
+    // First try hybrid symbol resolution
+    static HybridSymbolResolver hybridResolver;
+    if (hybridResolver.ResolveSymbol(name, address, size)) {
+        printf("[DYNAMIC] Symbol '%s' resolved via HYBRID resolver\n", name);
+        return true;
+    }
+
+    // Fallback to original method
+    printf("[DYNAMIC] Symbol '%s' not found via HYBRID, trying original method\n", name);
+    
     // Search in all loaded libraries
     for (const auto& [lib_name, info] : fLibraries) {
         if (!info.loaded || !info.handle) continue;

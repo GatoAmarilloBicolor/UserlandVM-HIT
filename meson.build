@@ -61,7 +61,8 @@ executable(
 	'Loader.cpp',
 	'Syscalls.cpp',
 	'DynamicLinker.cpp',  # Simplified implementation
-	# 'RelocationProcessor.cpp',  # TODO: Requires DynamicLinker
+	'HybridSymbolResolver.cpp',  # Hybrid symbol resolution
+	'SimpleRelocationProcessor.cpp',  # Enhanced with HybridSymbolResolver
 	'DirectAddressSpace.cpp',
 	'CommpageManager.cpp',
 	'TLSSetup.cpp',
@@ -109,13 +110,13 @@ executable(
 		'dynamic_loading',
 		'interpreter',
 		
-		# System Haiku headers
-		'/boot/system/develop/headers',
-		'/boot/system/develop/headers/os',
-		'/boot/system/develop/headers/private',
-		'/boot/system/develop/headers/private/shared',
-		'/boot/system/develop/headers/private/system',
-		'/boot/system/develop/headers/private/system/arch/x86',
+		# System Haiku headers (if on Haiku)
+		# '/boot/system/develop/headers',
+		# '/boot/system/develop/headers/os',
+		# '/boot/system/develop/headers/private',
+		# '/boot/system/develop/headers/private/shared',
+		# '/boot/system/develop/headers/private/system',
+		# '/boot/system/develop/headers/private/system/arch/x86',
 	],
 	gnu_symbol_visibility: 'hidden',
 	install: true

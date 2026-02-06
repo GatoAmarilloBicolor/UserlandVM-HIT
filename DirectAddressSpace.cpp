@@ -8,8 +8,8 @@
 #include <string.h>
 #include <cstdio>
 #include <stdlib.h>
-#include <OS.h>
-#include <kernel/OS.h>
+// #include <OS.h>
+// #include <kernel/OS.h>
 
 DirectAddressSpace::DirectAddressSpace()
     : fArea(-1),
@@ -27,9 +27,14 @@ DirectAddressSpace::DirectAddressSpace()
 
 DirectAddressSpace::~DirectAddressSpace()
 {
+#ifdef __HAIKU__
 	if (fArea >= 0) {
 		delete_area(fArea);
 	}
+#else
+	// On Linux, we used malloc, so we need to free
+	free((void*)fGuestBaseAddress);
+#endif
 }
 
 status_t
@@ -39,11 +44,15 @@ DirectAddressSpace::Init(size_t size)
 		return B_BAD_VALUE;
 
 	// Align to page size
-	size_t pageSize = B_PAGE_SIZE;
+	size_t pageSize = 4096;  // 4KB pages
 	size = (size + pageSize - 1) & ~(pageSize - 1);
 
 	// Haiku OS Native Memory Management: Use create_area for optimal performance
 	// This allows proper memory protection, caching, and integration with Haiku kernel
+#ifdef __HAIKU__
+	extern area_id create_area(const char* name, void** address, uint32_t addressSpec, 
+		size_t size, uint32_t lock, uint32_t protection);
+	
 	void *memoryBase = NULL;
 	area_id guestArea = create_area("userlandvm_guest_memory", &memoryBase,
 		B_ANY_ADDRESS, size, B_NO_LOCK, B_READ_AREA | B_WRITE_AREA);
@@ -54,7 +63,16 @@ DirectAddressSpace::Init(size_t size)
 	}
 	
 	fArea = guestArea;
-	fGuestBaseAddress = (addr_t)memoryBase;
+#else
+	// Linux/Unix compatibility: use malloc
+	void *memoryBase = malloc(size);
+	if (!memoryBase) {
+		printf("[LINUX] Failed to allocate guest memory: %zu bytes\n", size);
+		return B_NO_MEMORY;
+	}
+	fArea = -1;  // Not used on Linux
+#endif
+	fGuestBaseAddress = (uintptr_t)memoryBase;
 	fGuestSize = size;
 	
 	printf("[HAIKU] Created guest memory area: id=%d, base=%p, size=%zu\n", 
@@ -69,16 +87,37 @@ DirectAddressSpace::Read(uintptr_t guestAddress, void* buffer, size_t size)
 	if (!buffer)
 		return B_BAD_VALUE;
 	
-	// If using direct memory mode, guest addresses are direct offsets into guest memory
+	// If using direct memory mode, guest addresses need offset calculation
 	if (fUseDirectMemory) {
-		// In direct memory mode, guestAddress is a guest virtual address that maps directly
-		// to an offset in the allocated guest memory
-		if (guestAddress + size > fGuestSize) {
-			printf("[DirectAddressSpace::Read] ERROR: Address out of bounds in direct mode: guestAddr=0x%lx, size=%zu, guestSize=0x%lx\n",
-				guestAddress, size, fGuestSize);
+		// CRITICAL FIX: guestAddress is a virtual address that needs to be offset
+		// from the guest memory base. We can't add guestAddress directly to base.
+		
+		// For x86-32 binaries, typical virtual address space starts at 0x08048000
+		// We need to map this to an offset within our allocated guest memory
+		uintptr_t offset;
+		
+		// If guest address is in typical program range, map it to offset
+		if (guestAddress >= 0x08000000 && guestAddress < 0x80000000) {
+			// Map 0x08000000-0x7fffffff to 0x00000000-0x77ffffff (offset in guest memory)
+			offset = guestAddress - 0x08000000;
+		} else if (guestAddress < 0x08000000) {
+			// Low addresses (kernel space, etc.) - map 1:1 but check bounds
+			offset = guestAddress;
+		} else {
+			// High addresses - likely invalid for our use case
+			printf("[DirectAddressSpace::Read] ERROR: Invalid guest address in direct mode: guestAddr=0x%lx\n",
+				guestAddress);
 			return B_BAD_VALUE;
 		}
-		uint8_t* source = (uint8_t*)fGuestBaseAddress + guestAddress;
+		
+		// Check bounds
+		if (offset + size > fGuestSize) {
+			printf("[DirectAddressSpace::Read] ERROR: Address out of bounds in direct mode: guestAddr=0x%lx, offset=0x%lx, size=%zu, guestSize=0x%lx\n",
+				guestAddress, offset, size, fGuestSize);
+			return B_BAD_VALUE;
+		}
+		
+		uint8_t* source = (uint8_t*)fGuestBaseAddress + offset;
 		memcpy(buffer, source, size);
 		return B_OK;
 	}
@@ -125,7 +164,7 @@ DirectAddressSpace::ReadString(uintptr_t guestAddress, char* buffer, size_t buff
 	}
 
 	buffer[bufferSize - 1] = '\0'; // Ensure null termination if buffer is full
-	return B_BUFFER_OVERFLOW;
+	return -1;  // Buffer overflow
 }
 
 status_t
@@ -134,16 +173,37 @@ DirectAddressSpace::Write(uintptr_t guestAddress, const void* buffer, size_t siz
 	if (!buffer)
 		return B_BAD_VALUE;
 	
-	// If using direct memory mode, guest addresses are direct offsets into guest memory
+	// If using direct memory mode, guest addresses need offset calculation
 	if (fUseDirectMemory) {
-		// In direct memory mode, guestAddress is a guest virtual address that maps directly
-		// to an offset in the allocated guest memory
-		if (guestAddress + size > fGuestSize) {
-			printf("[DirectAddressSpace::Write] ERROR: Address out of bounds in direct mode: guestAddr=0x%lx, size=%zu, guestSize=0x%lx\n",
-				guestAddress, size, fGuestSize);
+		// CRITICAL FIX: guestAddress is a virtual address that needs to be offset
+		// from guest memory base. We can't add guestAddress directly to base.
+		
+		// For x86-32 binaries, typical virtual address space starts at 0x08048000
+		// We need to map this to an offset within our allocated guest memory
+		uintptr_t offset;
+		
+		// If guest address is in typical program range, map it to offset
+		if (guestAddress >= 0x08000000 && guestAddress < 0x80000000) {
+			// Map 0x08000000-0x7fffffff to 0x00000000-0x77ffffff (offset in guest memory)
+			offset = guestAddress - 0x08000000;
+		} else if (guestAddress < 0x08000000) {
+			// Low addresses (kernel space, etc.) - map 1:1 but check bounds
+			offset = guestAddress;
+		} else {
+			// High addresses - likely invalid for our use case
+			printf("[DirectAddressSpace::Write] ERROR: Invalid guest address in direct mode: guestAddr=0x%lx\n",
+				guestAddress);
 			return B_BAD_VALUE;
 		}
-		uint8_t* dest = (uint8_t*)fGuestBaseAddress + guestAddress;
+		
+		// Check bounds
+		if (offset + size > fGuestSize) {
+			printf("[DirectAddressSpace::Write] ERROR: Address out of bounds in direct mode: guestAddr=0x%lx, offset=0x%lx, size=%zu, guestSize=0x%lx\n",
+				guestAddress, offset, size, fGuestSize);
+			return B_BAD_VALUE;
+		}
+		
+		uint8_t* dest = (uint8_t*)fGuestBaseAddress + offset;
 		memcpy(dest, buffer, size);
 		return B_OK;
 	}
