@@ -67,6 +67,10 @@ executable(
 	'CommpageManager.cpp',
 	'TLSSetup.cpp',
 	'ExecutionBootstrap.cpp',
+	
+	# NEW: Complete Real Dynamic Linker
+	'RealDynamicLinker.cpp',
+	'ELFImage.cpp',
 	# 'ArchitectureFactory.cpp',  # TODO: Fix incomplete implementation
 	'Main.cpp',
 	
