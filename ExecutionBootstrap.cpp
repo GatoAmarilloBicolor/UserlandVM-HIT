@@ -51,9 +51,11 @@ status_t ExecutionBootstrap::ExecuteProgram(const char *programPath, char **argv
     bool isDynamic = image->IsDynamic();
     printf("[EXECUTION_BOOTSTRAP] Binary type: %s\n", isDynamic ? "DYNAMIC" : "STATIC");
     
-    // Create guest memory space (2GB for x86-32)
-    void* guestMemory = malloc(0x80000000);  // 2GB
-    if (!guestMemory) {
+    // Create guest memory space (2GB for x86-32) using abstraction
+    HaikuMemoryAbstraction& memAbstraction = HaikuMemoryAbstraction::GetInstance();
+    void* guestMemory;
+    status_t memResult = memAbstraction.AllocateSimple(&guestMemory, 0x80000000);  // 2GB
+    if (memResult != HAIKU_OK) {
         fprintf(stderr, "[EXECUTION_BOOTSTRAP] ERROR: Failed to allocate guest memory\n");
         delete image;
         return B_NO_MEMORY;
