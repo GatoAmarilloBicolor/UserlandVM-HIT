@@ -234,7 +234,31 @@ void* ElfImage::GetBaseAddress() const {
 }
 
 size_t ElfImage::GetSize() const {
-    return 0; // TODO: calculate from headers
+    // Calculate total memory size from program headers
+    size_t total_size = 0;
+    uint32_t max_addr = 0;
+    
+    if (!fProgramHeaders) {
+        return 0;
+    }
+    
+    // Iterate through all program headers to find memory requirements
+    for (int i = 0; i < fHeader.e_phnum; i++) {
+        if (fProgramHeaders[i].p_type == PT_LOAD) {
+            uint32_t segment_end = fProgramHeaders[i].p_vaddr + fProgramHeaders[i].p_memsz;
+            if (segment_end > max_addr) {
+                max_addr = segment_end;
+            }
+        }
+    }
+    
+    // Align to page size (4KB)
+    total_size = ((max_addr + 4095) / 4096) * 4096;
+    
+    printf("[linux.cosmoe] [ELF_IMAGE] Calculated ELF size: %zu bytes (%zu pages)\n", 
+           total_size, total_size / 4096);
+    
+    return total_size;
 }
 
 const Elf32_Ehdr& ElfImage::GetHeader() const {
