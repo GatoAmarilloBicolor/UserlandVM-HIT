@@ -18,3 +18,5 @@ Features:
   ✅ x86-32 Program Execution
   ✅ Enhanced Memory Management
   ✅ Real Haiku Program Support
+  make test-all          # Test all configurations
+Architecture Benefits:

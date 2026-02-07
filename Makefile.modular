@@ -1,9 +1,24 @@
 # UserlandVM-HIT - Complete BeOS/Haiku Linux System with Cosmoe Integration
-# Modular, Optional, Linux-Only Implementation
+# Cross-platform: Automatically detects and adapts to Haiku and Linux
 # Author: Complete Integration Session 2026-02-06
 
-CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra
+# Detect platform and set appropriate compiler
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Haiku)
+    PLATFORM = haiku
+    CXX = g++
+    CXXFLAGS = -std=c++17 -Wall -Wextra -D__HAIKU__
+    PLATFORM_LIBS = -lbe
+    PLATFORM_FLAGS = 
+else ifeq ($(UNAME_S),Linux)
+    PLATFORM = linux
+    CXX = g++
+    CXXFLAGS = -std=c++17 -Wall -Wextra -D__LINUX__
+    PLATFORM_LIBS = 
+    PLATFORM_FLAGS = 
+else
+    $(error Unsupported platform: $(UNAME_S))
+endif
 
 # Modular Components - Linux Native
 CORE_VM_SOURCES = core_vm.cpp
@@ -14,8 +29,18 @@ INTEGRATION_LAYER_SOURCES = Main.cpp
 # Cosmoe Integration (Optional - Only if Cosmoe is available)
 COSMOE_AVAILABLE = $(shell test -d sysroot/include/Be.h && echo "1" || echo "0")
 
-# Binary naming convention: nombre_binario.cosmoelinux for native system binaries
-BINARY_EXT = .cosmoelinux
+# All VM versions
+ALL_VMS = $(LINUX_CORE_VM) $(SHELL_INTERFACE_VM) $(MODULAR_VM) $(INTEGRATION_LAYER_VM) $(COSMOE_VM)
+
+# Default build
+all: $(MODULAR_VM)
+
+# Platform-specific binary naming (must be before target definitions)
+ifeq ($(PLATFORM),haiku)
+    BINARY_EXT = .haikunative
+else
+    BINARY_EXT = .cosmoelinux
+endif
 
 # Build Targets
 LINUX_CORE_VM = userlandvm_core_vm$(BINARY_EXT)
@@ -38,35 +63,35 @@ integration: $(INTEGRATION_LAYER_VM)
 cosmoe: $(COSMOE_VM)
 all-modular: $(ALL_VMS)
 
-# Build rules
+# Build rules with platform detection
 $(LINUX_CORE_VM): $(CORE_VM_SOURCES)
-	@echo "🏗️ Building Core VM..."
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	@echo "🏗️ Building Core VM for $(PLATFORM)..."
+	$(CXX) $(CXXFLAGS) $(PLATFORM_FLAGS) -o $@ $^ $(PLATFORM_LIBS)
 	@echo "✅ Core VM built: $@"
 
 $(SHELL_INTERFACE_VM): $(SHELL_INTERFACE_SOURCES)
-	@echo "🏗️ Building Shell Interface..."
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	@echo "🏗️ Building Shell Interface for $(PLATFORM)..."
+	$(CXX) $(CXXFLAGS) $(PLATFORM_FLAGS) -o $@ $^ $(PLATFORM_LIBS)
 	@echo "✅ Shell Interface built: $@"
 
 $(MODULAR_VM): $(MODULAR_VM_SOURCES)
-	@echo "🏗️ Building Modular VM..."
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	@echo "🏗️ Building Modular VM for $(PLATFORM)..."
+	$(CXX) $(CXXFLAGS) $(PLATFORM_FLAGS) -o $@ $^ $(PLATFORM_LIBS)
 	@echo "✅ Modular VM built: $@"
 
 $(INTEGRATION_LAYER_VM): $(INTEGRATION_LAYER_SOURCES)
-	@echo "🏗️ Building Integration Layer..."
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	@echo "🏗️ Building Integration Layer for $(PLATFORM)..."
+	$(CXX) $(CXXFLAGS) $(PLATFORM_FLAGS) -o $@ $^ $(PLATFORM_LIBS)
 	@echo "✅ Integration Layer built: $@"
 
 $(COSMOE_VM): $(MODULAR_VM_SOURCES)
 ifeq ($(COSMOE_AVAILABLE),1)
-	@echo "🏗️ Building Cosmoe Modular VM..."
-	$(CXX) $(CXXFLAGS) -I sysroot/include -o $@ $^ -L sysroot/lib -lcosmoe
+	@echo "🏗️ Building Cosmoe Modular VM for $(PLATFORM)..."
+	$(CXX) $(CXXFLAGS) $(PLATFORM_FLAGS) -I sysroot/include -o $@ $^ -L sysroot/lib -lcosmoe $(PLATFORM_LIBS)
 	@echo "✅ Cosmoe VM built: $@"
 else
 	@echo "❌ Cosmoe not available - skipping build"
-	@echo "ℹ️ Note: Native binaries should use .cosmoelinux extension"
+	@echo "ℹ️ Note: Native binaries use $(BINARY_EXT) extension"
 endif
 
 # Cosmoe Setup

@@ -245,8 +245,8 @@ int main(int argc, char* argv[]) {
     printf("Author: Linux Integration Session 2026-02-06\n");
     printf("================================\n");
     
-    if (argc != 2) {
-        printf("Usage: %s <elf_program>\n", argv[0]);
+    if (argc < 2) {
+        printf("Usage: %s <elf_program> [args...]\n", argv[0]);
         printf("  Executes ELF programs on Linux\n");
         printf("  No BeOS/Haiku dependency required\n");
         printf("  Simple and lightweight\n");

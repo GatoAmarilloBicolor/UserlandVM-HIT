@@ -1,21 +1,31 @@
-// Shell Interface Component - Standalone Linux Implementation
-// Command-line interface for modular VM
+// Shell Interface Component - Cross-platform Implementation
+// Command-line interface for modular VM - Works on Haiku and Linux
 // Author: Modular Integration Session 2026-02-06
 
 #include <iostream>
 #include <string>
 #include <vector>
 #include <cstdlib>
+#include <cstring>
 #include <unistd.h>
 
-// Shell Interface Class
+#ifdef __HAIKU__
+#include <OS.h>
+#define PLATFORM_NAME "Haiku"
+#define PLATFORM_LIBS "BeOS API available"
+#else
+#define PLATFORM_NAME "Linux"
+#define PLATFORM_LIBS "Native Linux system calls"
+#endif
+
+// Shell Interface Class - Standalone implementation
 class ShellInterface {
 private:
-    CoreVirtualMachine& vm;
+    // No VM dependency - standalone shell
     
 public:
-    ShellInterface(CoreVirtualMachine& vm_ref) : vm(vm_ref) {
-        printf("[SHELL_INTERFACE] Shell Interface initialized\n");
+    ShellInterface() {
+        printf("[SHELL_INTERFACE] Shell Interface initialized for %s\n", PLATFORM_NAME);
     }
     
     bool ExecuteCommand(const char* cmd) {
@@ -66,10 +76,11 @@ private:
 };
 
 // Main shell interface
-int main(int argc, char* argv[]) {
+int main(int /*argc*/, char* /*argv*/[]) {
     printf("=== UserlandVM-HIT Shell Interface ===\n");
-    printf("Platform: Linux Native\n");
+    printf("Platform: %s\n", PLATFORM_NAME);
     printf("Architecture: x86-64\n");
+    printf("Libraries: %s\n", PLATFORM_LIBS);
     printf("Author: Modular Integration Session 2026-02-06\n");
     printf("====================================\n");
     
