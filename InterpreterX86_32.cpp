@@ -161,16 +161,23 @@ status_t InterpreterX86_32::Run(GuestContext &context) {
   fflush(stdout);
 
   while (instr_count < MAX_INSTRUCTIONS) {
-    // printf("[INTERPRETER::Loop] instr_count=%u, EIP64=0x%lx, calling ExecuteInstruction\n", instr_count, x86_context.GetEIP64());
-    // fflush(stdout);
     uint32 bytes_consumed = 0;
     X86_32Registers &regs = x86_context.Registers();
     uint32 eip_before = regs.eip;
-    // printf("[INTERPRETER::Loop] About to call ExecuteInstruction\n");
-    // fflush(stdout);
+    
+    // Show first few instructions for debugging
+    if (instr_count < 20) {
+        printf("[INTERPRETER::Loop] Instruction %u: EIP=0x%08x\n", instr_count, eip_before);
+        fflush(stdout);
+    }
+    
     status_t status = ExecuteInstruction(context, bytes_consumed);
-    printf("[INTERPRETER::Loop] After ExecuteInstruction, status=%d, bytes=%u\n", status, bytes_consumed);
-    fflush(stdout);
+    
+    if (instr_count < 20) {
+        printf("[INTERPRETER::Loop] After instr %u: status=%d, bytes=%u, EIP=0x%08x\n", 
+               instr_count, status, bytes_consumed, regs.eip);
+        fflush(stdout);
+    }
 
     // DEBUG: Print EIP changes
     if (instr_count > 0 && instr_count % 5 == 0) {
