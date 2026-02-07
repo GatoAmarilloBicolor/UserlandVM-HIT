@@ -1,3 +1,4 @@
+#include "PlatformTypes.h"
 #include "Loader.h"
 
 #define __STDC_FORMAT_MACROS
@@ -13,12 +14,6 @@
 #include <type_traits>
 #include <vector>
 
-#include "Loader.h"
-
-// Platform-specific bypass for Haiku headers on Linux
-#define _SYS_TYPES_H 1 // Prevent re-inclusion of sys/types.h
-
-// Only include Haiku headers when actually on Haiku
 #ifdef __HAIKU__
 #include <OS.h>
 #include <image_defs.h>
@@ -27,9 +22,6 @@
 #include <private/system/arch/x86/arch_elf.h>
 #include <private/system/arch/x86_64/arch_elf.h>
 #include <private/system/syscalls.h>
-#else
-// Use our stub headers on non-Haiku systems
-// All needed types are already defined in PlatformTypes.h
 #endif
 
 area_id vm32_create_area(const char *name, void **address, uint32 addressSpec,
@@ -83,8 +75,8 @@ template <typename Class> void ElfImageImpl<Class>::LoadSegments() {
   }
   fSize = maxAdr - minAdr + 1;
 
-  printf("[ELF] Loading image: min=%#" B_PRIx64 " max=%#" B_PRIx64
-         " size=%#" B_PRIx64 "\n",
+  printf("[ELF] Loading image: min=%#" PRIx64 " max=%#" PRIx64
+         " size=%#" PRIx64 "\n",
          (uint64)minAdr, (uint64)maxAdr, (uint64)fSize);
 
   if constexpr (std::is_same<Class, Elf32Class>()) {
@@ -114,8 +106,8 @@ template <typename Class> void ElfImageImpl<Class>::LoadSegments() {
 
     switch (phdr.p_type) {
     case PT_LOAD: {
-      printf("[ELF] Loading PT_LOAD segment %u: vaddr=%#" B_PRIx64
-             " filesz=%#" B_PRIx64 " memsz=%#" B_PRIx64 " offset=%#" B_PRIx64
+      printf("[ELF] Loading PT_LOAD segment %u: vaddr=%#" PRIx64
+             " filesz=%#" PRIx64 " memsz=%#" PRIx64 " offset=%#" PRIx64
              "\n",
              i, (uint64)phdr.p_vaddr, (uint64)phdr.p_filesz,
              (uint64)phdr.p_memsz, (uint64)phdr.p_offset);
@@ -137,10 +129,10 @@ template <typename Class> void ElfImageImpl<Class>::LoadSegments() {
         abort();
       }
 
-      printf("[ELF] Seeking to offset %#" B_PRIx64 "\n", (uint64)phdr.p_offset);
+      printf("[ELF] Seeking to offset %#" PRIx64 "\n", (uint64)phdr.p_offset);
       fflush(stdout);
       fseek(fFile.Get(), phdr.p_offset, SEEK_SET);
-      printf("[ELF] Reading %#" B_PRIx64 " bytes to %p\n",
+      printf("[ELF] Reading %#" PRIx64 " bytes to %p\n",
              (uint64)phdr.p_filesz, dst);
       fflush(stdout);
 
@@ -161,21 +153,8 @@ template <typename Class> void ElfImageImpl<Class>::LoadSegments() {
       fflush(stdout);
       break;
     }
-    case PT_INTERP: {
-      printf("[ELF] Found PT_INTERP at vaddr=%#" B_PRIx64 "\n",
-             (uint64)phdr.p_vaddr);
-      
-      // Read interpreter path
-      const char* interp_path = (const char*)FromVirt(phdr.p_vaddr);
-      printf("[ELF] Interpreter: %s\n", interp_path);
-      
-      // Store interpreter path for later use
-      fInterpreterPath = interp_path;
-      break;
-    }
-    
     case PT_DYNAMIC: {
-      printf("[ELF] Found PT_DYNAMIC at vaddr=%#" B_PRIx64 "\n",
+      printf("[ELF] Found PT_DYNAMIC at vaddr=%#" PRIx64 "\n",
              (uint64)phdr.p_vaddr);
       fDynamic = (typename Class::Dyn *)FromVirt(phdr.p_vaddr);
       break;
@@ -269,78 +248,65 @@ void ElfImageImpl<Class>::DoRelocate(Reloc *reloc, Address relocSize) {
     } else {
       abort();
     }
-    if (reloc->SymbolIndex() != 0) {
-      sym = (Address)(addr_t)FromVirt(fSymbols[reloc->SymbolIndex()].st_value);
+    uint32 relType = ELF32_R_TYPE(reloc->r_info);
+    uint32 relSym = ELF32_R_SYM(reloc->r_info);
+    if (relSym > 0) {
+      typename Class::Sym &symEntry = fSymbols[relSym];
+      if (symEntry.st_shndx != SHN_UNDEF) {
+        sym = (Address)FromVirt(symEntry.st_value);
+      }
     }
-
     switch (fHeader.e_machine) {
-    case EM_386:
-    case EM_486:
-      switch (reloc->Type()) {
-      case R_386_NONE:
-        break;
+    case EM_386: {
+      switch (relType) {
       case R_386_32:
         *dst = old + sym;
         break;
       case R_386_GLOB_DAT:
+        *dst = sym;
+        break;
       case R_386_JMP_SLOT:
         *dst = sym;
         break;
       case R_386_RELATIVE:
-        *dst = (Address)(addr_t)FromVirt(old + sym);
+        if constexpr (std::is_same<Reloc, typename Class::Rel>()) {
+          *dst = (Address)(addr_t)FromVirt(*dst + fDelta);
+        } else {
+          *dst = (Address)(addr_t)FromVirt(old + fDelta);
+        }
         break;
       default:
-        abort();
+        break;
       }
       break;
-    case EM_68K:
-      abort();
-      break;
-    case EM_PPC:
-      abort();
-      break;
-    case EM_ARM:
-      switch (reloc->Type()) {
-      case R_ARM_NONE:
-        continue;
-      case R_ARM_RELATIVE:
-        *dst = (Address)(addr_t)FromVirt(old + sym);
-        break;
-      case R_ARM_JMP_SLOT:
-      case R_ARM_GLOB_DAT:
-        *dst = sym;
-        break;
-      case R_ARM_ABS32:
-        *dst = old + sym;
-        break;
-      default:
-        abort();
-      }
-      break;
-    case EM_ARM64:
-      abort();
-      break;
-    case EM_X86_64:
-      switch (reloc->Type()) {
-      case R_X86_64_NONE:
-        break;
+    }
+    case EM_X86_64: {
+      switch (relType) {
       case R_X86_64_64:
         *dst = old + sym;
         break;
-      case R_X86_64_JUMP_SLOT:
       case R_X86_64_GLOB_DAT:
         *dst = sym;
         break;
+      case R_X86_64_JUMP_SLOT:
+        *dst = sym;
+        break;
       case R_X86_64_RELATIVE:
-        *dst = (Address)(addr_t)FromVirt(old + sym);
+        if constexpr (std::is_same<Reloc, typename Class::Rel>()) {
+          *dst = (Address)(addr_t)FromVirt(*dst + fDelta);
+        } else {
+          *dst = (Address)(addr_t)FromVirt(old + fDelta);
+        }
         break;
       default:
         abort();
       }
       break;
-    case EM_RISCV:
-      switch (reloc->Type()) {
-      case R_RISCV_NONE:
+    }
+    case EM_RISCV: {
+      switch (relType) {
+      case R_RISCV_32:
+        *dst = old + sym;
         break;
       case R_RISCV_64:
         *dst = old + sym;
@@ -355,6 +321,7 @@ void ElfImageImpl<Class>::DoRelocate(Reloc *reloc, Address relocSize) {
         abort();
       }
       break;
+    }
     default:
       abort();
     }

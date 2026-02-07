@@ -1,5 +1,6 @@
 #pragma once
 
+#include "PlatformTypes.h"
 #include <SupportDefs.h>
 
 
