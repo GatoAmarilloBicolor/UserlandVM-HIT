@@ -1,6 +1,6 @@
-#include <unistd.h>
+#include <stdio.h>
 
-int main() {
-    write(1, "Hello from C!\n", 14);
-    return 42;
+int main() { 
+    printf("Hello from Core VM test!\n"); 
+    return 42; 
 }

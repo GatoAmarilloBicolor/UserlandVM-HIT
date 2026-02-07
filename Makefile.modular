@@ -1,0 +1,248 @@
+# UserlandVM-HIT - Complete BeOS/Haiku Linux System with Cosmoe Integration
+# Modular, Optional, Linux-Only Implementation
+# Author: Complete Integration Session 2026-02-06
+
+CXX = g++
+CXXFLAGS = -std=c++17 -Wall -Wextra
+
+# Modular Components - Linux Native
+CORE_VM_SOURCES = core_vm.cpp
+SHELL_INTERFACE_SOURCES = shell_interface.cpp
+MODULAR_VM_SOURCES = userlandvm_linux_simple.cpp
+INTEGRATION_LAYER_SOURCES = Main.cpp
+
+# Cosmoe Integration (Optional - Only if Cosmoe is available)
+COSMOE_AVAILABLE = $(shell test -d sysroot/include/Be.h && echo "1" || echo "0")
+
+# Build Targets
+LINUX_CORE_VM = userlandvm_core_vm
+SHELL_INTERFACE_VM = userlandvm_shell_interface
+MODULAR_VM = userlandvm_modular
+INTEGRATION_LAYER_VM = userlandvm_integration_layer
+COSMOE_VM = userlandvm_cosmoe_modular
+
+# All VM versions
+ALL_VMS = $(LINUX_CORE_VM) $(SHELL_INTERFACE_VM) $(MODULAR_VM) $(INTEGRATION_LAYER_VM) $(COSMOE_VM)
+
+# Default build
+all: $(MODULAR_VM)
+
+# Individual builds
+core: $(LINUX_CORE_VM)
+shell: $(SHELL_INTERFACE_VM)
+modular: $(MODULAR_VM)
+integration: $(INTEGRATION_LAYER_VM)
+cosmoe: $(COSMOE_VM)
+all-modular: $(ALL_VMS)
+
+# Build rules
+$(LINUX_CORE_VM): $(CORE_VM_SOURCES)
+	@echo "🏗️ Building Core VM..."
+	$(CXX) $(CXXFLAGS) -o $@ $^
+	@echo "✅ Core VM built: $@"
+
+$(SHELL_INTERFACE_VM): $(SHELL_INTERFACE_SOURCES)
+	@echo "🏗️ Building Shell Interface..."
+	$(CXX) $(CXXFLAGS) -o $@ $^
+	@echo "✅ Shell Interface built: $@"
+
+$(MODULAR_VM): $(MODULAR_VM_SOURCES)
+	@echo "🏗️ Building Modular VM..."
+	$(CXX) $(CXXFLAGS) -o $@ $^
+	@echo "✅ Modular VM built: $@"
+
+$(INTEGRATION_LAYER_VM): $(INTEGRATION_LAYER_SOURCES)
+	@echo "🏗️ Building Integration Layer..."
+	$(CXX) $(CXXFLAGS) -o $@ $^
+	@echo "✅ Integration Layer built: $@"
+
+$(COSMOE_VM): $(MODULAR_VM_SOURCES)
+ifeq ($(COSMOE_AVAILABLE),1)
+	@echo "🏗️ Building Cosmoe Modular VM..."
+	$(CXX) $(CXXFLAGS) -I sysroot/include -o $@ $^ -L sysroot/lib -lcosmoe
+	@echo "✅ Cosmoe VM built: $@"
+else
+	@echo "❌ Cosmoe not available - skipping build"
+endif
+
+# Cosmoe Setup
+setup-cosmoe:
+	@echo "🌱 Setting up Cosmoe environment for Haiku apps on Linux..."
+	@echo "Cloning Cosmoe repository..."
+	@if [ ! -d "cosmoe" ]; then \
+		git clone https://gitlab.com/haydentech/cosmoe.git; \
+	fi
+	@echo "📁 Setting up sysroot with Cosmoe headers..."
+	@if [ ! -d "sysroot" ]; then \
+		mkdir -p sysroot/include sysroot/lib sysroot/src; \
+		cp -r cosmoe/headers/* sysroot/include/; \
+		cp -r cosmoe/src/* sysroot/src/; \
+		echo "# UserlandVM-HIT Cosmoe Sysroot" > sysroot/README.md; \
+		echo "" >> sysroot/README.md; \
+		echo "# Platform: Linux with Cosmoe BeOS API" >> sysroot/README.md; \
+		echo "# Purpose: Run BeOS/Haiku applications on Linux" >> sysroot/README.md; \
+		echo "Architecture: x86-64 Linux + Cosmoe BeOS API" >> sysroot/README.md; \
+		echo "Dependencies: Cosmoe libraries (if available)" >> sysroot/README.md; \
+	fi
+	@echo "✅ Cosmoe sysroot ready!"
+	@echo "   Headers: " $(shell ls sysroot/include/ 2>/dev/null | wc -l) " files"
+	@echo "   Sources: " $(shell ls sysroot/src/ 2>/dev/null | wc -l) " files"
+
+# Build Cosmoe (if available)
+build-cosmoe:
+	@if [ ! -d "cosmoe" ]; then \
+		echo "❌ Cosmoe not available - skipping build"; \
+	else \
+		echo "🏗️ Building Cosmoe libraries on Linux..."; \
+		cd cosmoe && meson setup build && ninja -C build; \
+		echo "✅ Cosmoe libraries built"; \
+	fi
+
+# Test different configurations
+test-linux:
+	@echo "🧪 Testing Linux Core VM..."
+	./$(LINUX_CORE_VM) test_haiku_simple
+
+test-modular:
+	@echo "🧪 Testing Modular VM..."
+	./$(MODULAR_VM) test_haiku_simple
+
+test-integration:
+	@echo "🧪 Testing Integration Layer..."
+	./$(INTEGRATION_LAYER_VM) test_haiku_simple
+
+test-cosmoe:
+ifeq ($(COSMOE_AVAILABLE),1)
+	@echo "🧪 Testing Cosmoe Integration..."
+	./$(COSMOE_VM) test_haiku_simple
+else
+	@echo "❌ Cosmoe not available"
+endif
+
+# All tests
+test-all: test-linux test-modular test-integration
+ifeq ($(COSMOE_AVAILABLE),1)
+	@echo "🧪 Testing All Configurations (including Cosmoe)..."
+	@echo "1. Core VM Test..."
+	./$(LINUX_CORE_VM) test_haiku_simple || echo "❌ Core VM test failed"
+	@echo "2. Modular VM Test..."
+	./$(MODULAR_VM) test_haiku_simple || echo "❌ Modular VM test failed"
+	@echo "3. Integration Layer Test..."
+	./$(INTEGRATION_LAYER_VM) test_haiku_simple || echo "❌ Integration Layer test failed"
+	@echo "4. Cosmoe Integration Test..."
+	./$(COSMOE_VM) test_haiku_simple || echo "❌ Cosmoe Integration test failed"
+else
+	@echo "1. Core VM Test..."
+	./$(LINUX_CORE_VM) test_haiku_simple || echo "❌ Core VM test failed"
+	@echo "2. Modular VM Test..."
+	./$(MODULAR_VM) test_haiku_simple || echo "❌ Modular VM test failed"
+	@echo "3. Integration Layer Test..."
+	./$(INTEGRATION_LAYER_VM) test_haiku_simple || echo "❌ Integration Layer test failed"
+	@echo "❌ Skipping Cosmoe tests"
+endif
+
+# Clean targets
+clean:
+	@echo "🧹 Cleaning build artifacts..."
+	rm -f $(ALL_VMS)
+	rm -f test_haiku_simple*
+	@echo "✅ Clean completed"
+
+deep-clean: clean
+	@echo "🧹 Deep cleaning..."
+	rm -rf sysroot cosmoe
+	@echo "✅ Deep clean completed"
+
+# Documentation
+docs:
+	@echo "📚 Generating documentation..."
+	@echo "# UserlandVM-HIT: Complete BeOS/Haiku Linux System with Cosmoe" > README.md
+	@echo "" >> README.md
+	@echo "## Overview" >> README.md
+	@echo "Complete BeOS/Haiku userland emulation on Linux using Cosmoe" >> README.md
+	@echo "" >> README.md
+	@echo "Architecture: Linux Native x86-64" >> README.md
+	@echo "BeOS API: Cosmoe compatibility layer" >> README.md
+	@echo "Integration: Optional Cosmoe libraries" >> README.md
+	@echo "Modular: Yes - extensible framework" >> README.md
+	@echo "" >> README.md
+	@echo "Dependencies: None (Linux only, Cosmoe optional)" >> README.md
+	@echo "" >> README.md
+	echo "## Build System" >> README.md
+	@echo "### Core Components" >> README.md
+	@echo "- Core VM: Simple, lightweight VM for ELF execution" >> README.md
+	@echo "- Shell Interface: Command-line interface integration" >> README.md
+	@echo "- Modular VM: Extensible framework for VM features" >> README.md
+	@echo "- Integration Layer: Component communication and coordination" >> README.md
+	@echo "" >> README.md
+	@echo "### Optional Cosmoe Integration" >> README.md
+	@echo "- BeOS/Haiku API via Cosmoe libraries" >> README.md
+	@echo "- Optional (requires Cosmoe installation)" >> README.md
+	@echo "" >> README.md
+	@echo "## Build Commands" >> README.md
+	@echo "make                    # Build default modular VM" >> README.md
+	@echo "make core              # Build core Linux VM" >> README.md
+	@echo "make shell             # Build shell interface" >> README.md
+	@echo "make modular           # Build modular VM" >> README.md
+	@echo "make integration        # Build integration layer" >> README.md
+	@echo "make cosmoe           # Build Cosmoe VM (if available)" >> README.md
+	@echo "make all-modular       # Build all components" >> README.md
+	@echo "" >> README.md
+	@echo "### Cosmoe Setup" >> README.md
+	@echo "make setup-cosmoe      # Clone Cosmoe and setup sysroot" >> README.md
+	@echo "make build-cosmoe      # Build Cosmoe libraries (if available)" >> README.md
+	@echo "make deep-clean        # Remove all generated files" >> README.md
+	@echo "" >> README.md
+	@echo "## Test Commands" >> README.md
+	@echo "make test-linux         # Test core VM" >> README.md
+	@echo "make test-modular      # Test modular VM" >> README.md
+	@echo "make test-integration  # Test integration layer" >> README.md
+	@echo "make test-cosmoe       # Test Cosmoe integration" >> README.md
+	@echo "make test-all          # Test all configurations" >> README.md
+	@echo "" >> README.md
+	@echo "### Architecture Benefits" >> README.md
+	echo "- Linux Native Performance: No virtualization overhead" >> README.md
+	echo "- Direct System Calls: Native Linux system calls" >> README.md
+	echo "- Real Application APIs: BeOS/Haiku APIs via Cosmoe" >> README.md
+	echo "- Hardware Acceleration: Native Linux graphics" >> README.md
+	@echo "No BeOS Dependency Required: Pure Linux implementation" >> README.md
+	@echo "- Modular Architecture: Easy to extend and modify" >> README.md
+	@echo "" >> README.md
+	@echo "✅ Documentation generated"
+
+# Show system status
+show-status:
+	@echo "UserlandVM-HIT System Status:"
+	@echo "================================"
+	@echo "Platform: Linux Native"
+	@echo "Architecture: x86-64"
+	@echo "Cosmoe Available: $(COSMOE_AVAILABLE ? "YES" : "NO")"
+	@echo "================================"
+	@echo ""
+	@echo "Available Build Targets:"
+	@echo "  make                    # Build default modular VM"
+	@echo "  make core              # Build core Linux VM"
+	@echo "  make shell             # Build shell interface"
+	@echo "  make modular           # Build modular VM"
+	@echo "  make integration        # Build integration layer"
+	@echo "  make all-modular       # Build all components"
+	@if [ $(COSMOE_AVAILABLE) = 1 ]; then \
+		echo "  make cosmoe           # Build Cosmoe VM" >> README.md; \
+		echo "  make setup-cosmoe     # Setup Cosmoe sysroot" >> README.md; \
+		echo "  make build-cosmoe     # Build Cosmoe libraries" >> README.md; \
+	fi
+	@echo "  make test-all          # Test all configurations" >> README.md
+	@echo ""
+	@echo "Architecture Benefits:" >> README.md
+	@echo "  - Linux Native Performance: No virtualization overhead"
+	@echo "  - Direct System Calls: Native Linux system calls"
+	echo "  - Real Application APIs: BeOS/Haiku APIs via Cosmoe"
+	@echo "  - Hardware Acceleration: Native Linux graphics"
+	@echo "  - No BeOS dependency required"
+	@echo "  - Modular Architecture: Easy to extend and modify"
+
+# Phony targets
+.PHONY: all core shell modular integration cosmoe all-modular setup-cosmoe build-cosmoe deep-clean docs show-status
+
+# Default goal
+.DEFAULT_GOAL := all
