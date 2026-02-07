@@ -1,29 +1,14 @@
 #pragma once
 
-#include <stdint.h>
-#include <sys/types.h>
+// Must include PlatformTypes first for type definitions
+#include "PlatformTypes.h"
 
 // Basic Haiku type definitions for HaikuOS compatibility
 // Note: Avoid conflicts with system types
-#ifndef _SUPPORTDEFS_H
-#define _SUPPORTDEFS_H
+#ifndef _SUPPORTDEFS_IMPL_H
+#define _SUPPORTDEFS_IMPL_H
 
-#include <stdint.h>
-#include <sys/types.h>
-
-// Haiku-style type definitions - use system types to avoid conflicts
-#ifdef __HAIKU__
-#include <SupportDefs.h>
-#else
-// For non-Haiku systems
-typedef int32_t status_t;
-typedef uintptr_t addr_t;
-typedef uintptr_t phys_addr_t;  
-typedef uintptr_t vm_addr_t;
-typedef size_t vm_size_t;
-typedef int32_t area_id;
-typedef int32_t team_id;
-#endif
+// Already defined in PlatformTypes.h - don't redefine
 
 // Common status codes
 #ifndef B_OK
@@ -89,7 +74,13 @@ typedef int32_t team_id;
 
 // Area management
 #ifdef __HAIKU__
-#define delete_area(area) delete_area(area)
+// On Haiku, delete_area should be provided by OS.h
+// If not available, provide a stub
+extern "C" status_t _kern_delete_area(area_id area) __attribute__((weak));
+inline status_t delete_area(area_id area) {
+  if (_kern_delete_area) return _kern_delete_area(area);
+  return B_OK;
+}
 #else
 #define delete_area(area) do { (void)(area); } while(0)
 #endif

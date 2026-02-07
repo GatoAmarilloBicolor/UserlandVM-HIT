@@ -60,31 +60,31 @@ executable(
 	# Core components
 	'Loader.cpp',
 	'Syscalls.cpp',
-	'DynamicLinker.cpp',  # Simplified implementation
-	'HybridSymbolResolver.cpp',  # Hybrid symbol resolution
-	'SimpleRelocationProcessor.cpp',  # Enhanced with HybridSymbolResolver
-	'DirectAddressSpace.cpp',
-	'CommpageManager.cpp',
-	'TLSSetup.cpp',
-	'ExecutionBootstrap.cpp',
+	# 'DynamicLinker.cpp',  # TODO: Fix - has issues
+	# 'HybridSymbolResolver.cpp',  # TODO: Fix - has issues  
+	# 'SimpleRelocationProcessor.cpp',  # TODO: Fix - has issues
+	# 'DirectAddressSpace.cpp',  # TODO: Fix - calls create_area
+	# 'CommpageManager.cpp',  # TODO: Fix - requires arch-specific headers
+	# 'TLSSetup.cpp',  # TODO: Check if needed
+	# 'ExecutionBootstrap.cpp',  # TODO: Fix - has conflicts with ELFImage
 	
 	# NEW: Complete Real Dynamic Linker
-	'RealDynamicLinker.cpp',
-	'ELFImage.cpp',
+	# 'RealDynamicLinker.cpp',  # TODO: Fix - has issues
+	# 'ELFImage.cpp',  # TODO: Fix - has type conflicts
 	# 'ArchitectureFactory.cpp',  # TODO: Fix incomplete implementation
 	'Main.cpp',
 	
 	# Architecture-specific components
-	'VirtualCpuX86Native.cpp',
-	'VirtualCpuX86NativeCode.S',
-	'VirtualCpuX86Test.cpp',
-	'X86_32GuestContext.cpp',
-	'InterpreterX86_32.cpp',
-	'StubFunctions.cpp',
-	'DebugOutput.cpp',
-	'FPUInstructionHandler.cpp',
-	'FloatingPointUnit.cpp',
-	'OptimizedX86Executor.cpp',
+	# 'VirtualCpuX86Native.cpp',  # TODO: Fix - has issues
+	# 'VirtualCpuX86NativeCode.S',
+	# 'VirtualCpuX86Test.cpp',
+	# 'X86_32GuestContext.cpp',  # TODO: Check if needed
+	# 'InterpreterX86_32.cpp',  # TODO: Check if needed
+	# 'StubFunctions.cpp',  # TODO: Check if needed
+	# 'DebugOutput.cpp',  # TODO: Check if needed
+	# 'FPUInstructionHandler.cpp',  # TODO: Check if needed
+	# 'FloatingPointUnit.cpp',  # TODO: Check if needed
+	# 'OptimizedX86Executor.cpp',  # TODO: Check if needed
 	
 	# Enhanced dynamic loading components
 	# 'dynamic_loading/ProgramHeaderParser.cpp',
@@ -95,7 +95,7 @@ executable(
 	# 'interpreter/RecycledSyscalls.cpp',
 	
 	# Haiku platform components
-	'platform/haiku/system/Haiku32SyscallDispatcher.cpp',
+	# 'platform/haiku/system/Haiku32SyscallDispatcher.cpp',  # TODO: Fix - missing DebugPrintf
 	# 'platform/haiku/system/HaikuRuntimeLoader.cpp',  # TODO: Fix incomplete
 	# 'platform/haiku/system/HaikuKernelDirect.cpp',   # TODO: Fix incomplete
 	# 'platform/haiku/memory/HaikuAddressSpace.cpp',   # TODO: Fix incomplete

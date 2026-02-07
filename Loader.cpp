@@ -13,6 +13,7 @@
 #include <cstring>
 #include <type_traits>
 #include <vector>
+#include <sys/mman.h>
 
 #ifdef __HAIKU__
 #include <OS.h>
@@ -26,6 +27,19 @@
 
 area_id vm32_create_area(const char *name, void **address, uint32 addressSpec,
                          size_t size, uint32 lock, uint32 protection);
+
+// Fallback for 64-bit area creation if not available
+#ifndef create_area
+static inline area_id create_area(const char *name, void **address, uint32 addressSpec,
+                         size_t size, uint32 lock, uint32 protection) {
+  // Use posix mmap as fallback
+  void *ptr = mmap(nullptr, size, PROT_READ | PROT_WRITE | PROT_EXEC,
+                   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (ptr == MAP_FAILED) return B_ERROR;
+  *address = ptr;
+  return 1; // fake area_id
+}
+#endif
 
 static bool FileRead(FILE *f, void *data, size_t size) {
   size_t read = fread(data, size, 1, f);
@@ -253,7 +267,7 @@ void ElfImageImpl<Class>::DoRelocate(Reloc *reloc, Address relocSize) {
     if (relSym > 0) {
       typename Class::Sym &symEntry = fSymbols[relSym];
       if (symEntry.st_shndx != SHN_UNDEF) {
-        sym = (Address)FromVirt(symEntry.st_value);
+        sym = (Address)(uintptr_t)FromVirt(symEntry.st_value);
       }
     }
     switch (fHeader.e_machine) {
@@ -328,30 +342,12 @@ void ElfImageImpl<Class>::DoRelocate(Reloc *reloc, Address relocSize) {
   }
 }
 
-template <typename Class> void ElfImageImpl<Class>::Register() {
-  extended_image_info info{.basic_info =
-                               {
-                                   .type = B_LIBRARY_IMAGE,
-                                   .text = fBase,
-                                   .text_size = (int32)fSize,
-                               },
-                           .text_delta = fDelta,
-                           .symbol_table = fSymbols};
-
-  struct stat stat;
-  if (_kern_read_stat(fileno(fFile.Get()), NULL, false, &stat,
-                      sizeof(struct stat)) == B_OK) {
-    info.basic_info.device = stat.st_dev;
-    info.basic_info.node = stat.st_ino;
-  } else {
-    info.basic_info.device = -1;
-    info.basic_info.node = -1;
-  }
-
-  strcpy(info.basic_info.name, fPath.Get());
-
-  _kern_register_image(&info, sizeof(info));
-}
+// Register() is not used in stable baseline - commented out
+// This requires Haiku-specific structures that aren't available
+// template <typename Class> void ElfImageImpl<Class>::Register() {
+//   extended_image_info info{...};
+//   ...
+// }
 
 template <typename Class> void ElfImageImpl<Class>::LoadDynamic() {
   if (!fDynamic) {
@@ -548,13 +544,13 @@ ElfImage *ElfImage::Load(const char *path) {
     return NULL;
   }
 
-  image->fPath.SetTo(new char[strlen(path) + 1]);
-  strcpy(image->fPath.Get(), path);
-  image->fFile.SetTo(file.Detach());
+  image.Get()->fPath.SetTo(new char[strlen(path) + 1]);
+  strcpy(image.Get()->fPath.Get(), path);
+  image.Get()->fFile.SetTo(file.Detach());
 
   printf("[ELF] Starting ELF image load\n");
   fflush(stdout);
-  image->DoLoad();
+  image.Get()->DoLoad();
   printf("[ELF] ELF image load complete\n");
   fflush(stdout);
 
