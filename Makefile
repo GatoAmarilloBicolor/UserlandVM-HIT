@@ -10,11 +10,13 @@ INCLUDES = -I. -Iplatform -Iplatform/haiku
 MASTER_VM = userlandvm_haiku32_master
 ENHANCED_VM = userlandvm_haiku32_haiku_os
 COMPLETE_VM = userlandvm_haiku32_complete
+PT_INTERP_VM = userlandvm_haiku32_enhanced_interp
 
 # Source files for enhanced VM
 ENHANCED_SOURCES = userlandvm_haiku32_haiku_os.cpp
 MASTER_SOURCES = userlandvm_haiku32_master.cpp
 COMPLETE_SOURCES = userlandvm_haiku32_complete.cpp
+PT_INTERP_SOURCES = userlandvm_haiku32_enhanced_interp.cpp
 
 # Haiku API headers
 HAIKU_HEADERS = \
@@ -42,12 +44,18 @@ $(MASTER_VM): $(MASTER_SOURCES) $(HAIKU_HEADERS)
 # Build individual versions
 enhanced: $(ENHANCED_VM)
 complete: $(COMPLETE_VM)
-all-versions: enhanced complete
+pt-interp: $(PT_INTERP_VM)
+all-versions: enhanced complete pt-interp
 
 $(ENHANCED_VM): $(ENHANCED_SOURCES) $(HAIKU_HEADERS)
 	@echo "🔨 Building Enhanced UserlandVM-HIT..."
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $(ENHANCED_SOURCES)
 	@echo "✅ Enhanced VM built: $@"
+
+$(PT_INTERP_VM): $(PT_INTERP_SOURCES) $(HAIKU_HEADERS)
+	@echo "🔨 Building Enhanced PT_INTERP Dynamic Linker..."
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $(PT_INTERP_SOURCES)
+	@echo "✅ PT_INTERP Dynamic Linker built: $@"
 
 $(COMPLETE_VM): $(COMPLETE_SOURCES)
 	@echo "🔨 Building Complete UserlandVM-HIT..."
