@@ -104,8 +104,8 @@ int main(int argc, char *argv[]) {
   
   // Set up initial registers
   guest_context.Registers().eip = (uint32_t)entry_offset;  // Guest address is offset from base
-  guest_context.Registers().esp = 0x30000000;  // Stack pointer
-  guest_context.Registers().ebp = 0x30000000;  // Base pointer
+  guest_context.Registers().esp = 256 * 1024 * 1024 - 4096;  // Stack at end of memory, leave 4KB buffer
+  guest_context.Registers().ebp = guest_context.Registers().esp;  // Base pointer
   guest_context.Registers().eax = 0;
   guest_context.Registers().ebx = 0;
   guest_context.Registers().ecx = 0;
@@ -138,6 +138,15 @@ int main(int argc, char *argv[]) {
   }
   catch (...) {
     printf("[Main] ❌ Unknown exception during execution\n");
+  }
+  
+  printf("[Main] ============================================\n");
+  printf("[Main] PHASE 4: GUI Summary\n");
+  printf("[Main] ============================================\n");
+  
+  // Show window information if any windows were created
+  if (syscall_dispatcher.GetGUIHandler()) {
+    syscall_dispatcher.GetGUIHandler()->PrintWindowInfo();
   }
   
   delete image;
