@@ -13,6 +13,10 @@
 #include "X86_32GuestContext.h"
 #include "InterpreterX86_32.h"
 
+// Include new functionality from remote
+#include "EnhancedDynamicSymbolResolution.h"
+#include "RecycledBasicSyscalls.h"
+
 // Minimal stub implementation for stable baseline
 // The full Main.cpp depends on Haiku kernel APIs and should be implemented later
 
@@ -41,6 +45,14 @@ area_id vm32_create_area(const char *name, void **address, uint32 addressSpec,
 int main(int argc, char *argv[]) {
   printf("[Main] UserlandVM-HIT Stable Baseline\n");
   printf("[Main] argc=%d, argv[0]=%s\n", argc, argc > 0 ? argv[0] : "NULL");
+  
+  // Initialize new functionality
+  printf("[Main] ============================================\n");
+  printf("[Main] Initializing Enhanced Functionality\n");
+  printf("[Main] ============================================\n");
+  ApplyRecycledBasicSyscalls();
+  DynamicSymbolResolution::AddCommonSymbols();
+  printf("[Main] ✅ Enhanced functionality initialized\n\n");
   
   if (argc < 2) {
     printf("[Main] Usage: %s <elf_binary>\n", argv[0]);

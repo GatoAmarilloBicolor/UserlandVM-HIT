@@ -64,7 +64,7 @@ namespace RecycledBasicSyscalls {
         
         // Handle standard file descriptors specially
         switch (fd) {
-            case 0: // stdin
+            case 0: { // stdin
                 printf("[RECYCLED_SYSCALL] Reading from stdin: ");
                 // For stdin, we'll simulate reading a line
                 char* char_buffer = static_cast<char*>(buffer);
@@ -78,6 +78,7 @@ namespace RecycledBasicSyscalls {
                     return (int)len;
                 }
                 return 0;
+            }
                 
             default:
                 // For other file descriptors, use actual read

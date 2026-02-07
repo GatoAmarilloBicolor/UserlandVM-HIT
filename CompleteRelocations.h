@@ -24,8 +24,8 @@ namespace CompleteRelocations {
         R_386_32PLT = 10,   // Direct 32-bit with PLT
         R_386_SIZE32 = 11,   // Size calculation + PLT
         R_386_GOTPCRELX = 12, // GOTPCREL with PLX
-        R_386_64 = 13       // Direct 64-bit absolute
-        R_386_PC64 = 14      // PC-relative 64-bit
+        R_386_64 = 13,       // Direct 64-bit absolute
+        R_386_PC64 = 14,      // PC-relative 64-bit
         R_386_GOT64 = 15,     // PC-relative 64-bit GOT entry
         R_386_PLT64 = 16,     // PC-relative 64-bit PLT entry
         R_386_COPY64 = 17,     // Direct copy 64-bit
@@ -35,7 +35,7 @@ namespace CompleteRelocations {
         R_386_GOTPCREL64 = 21, // GOTPCREL 64-bit
         R_386_32PLT64 = 22, // Direct 32-bit with PLT 64-bit
         R_386_SIZE64 = 23,   // Size calculation 64-bit + PLT
-        R_386_GOTPCRELX64 = 24 // GOTPCREL with PLX 64-bit
+        R_386_GOTPCRELX64 = 24, // GOTPCREL with PLX 64-bit
         R_386_IRELATIVE = 25   // Indirect PC-relative
     };
     
