@@ -8,6 +8,8 @@
 #include "Loader.h"
 #include "Syscalls.h"
 #include "Phase1DynamicLinker.h"
+#include "Phase2SyscallHandler.h"
+#include "SimpleX86Executor.h"
 
 // Minimal stub implementation for stable baseline
 // The full Main.cpp depends on Haiku kernel APIs and should be implemented later
@@ -81,8 +83,27 @@ int main(int argc, char *argv[]) {
     printf("[Main] Static program - no interpreter needed\n");
   }
   
+  // Phase 2: Execute the program with syscall handling
+  printf("[Main] ============================================\n");
+  printf("[Main] PHASE 2: Execution with Syscalls\n");
+  printf("[Main] ============================================\n");
+  
+  Phase2SyscallHandler handler;
+  SimpleX86Executor executor(image->GetImageBase(), 256 * 1024 * 1024);
+  
+  printf("[Main] Starting execution of %s\n", argv[1]);
+  printf("[Main] Entry point: 0x%p\n", image->GetEntry());
+  
+  bool executed = executor.Execute((uint32_t)(uintptr_t)image->GetEntry(), handler);
+  
+  if (executed) {
+    printf("[Main] ✅ Program executed successfully\n");
+  } else {
+    printf("[Main] ⚠️  Program execution ended (not all instructions supported)\n");
+  }
+  
   delete image;
   
-  printf("[Main] Test completed successfully\n");
+  printf("[Main] Test completed\n");
   return 0;
 }
