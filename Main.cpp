@@ -57,6 +57,19 @@ int main(int argc, char *argv[]) {
   printf("[Main] Image base: %p\n", image->GetImageBase());
   printf("[Main] Dynamic: %s\n", image->IsDynamic() ? "yes" : "no");
   
+  // Phase 1: PT_INTERP Handler
+  const char *interp = image->GetInterpreter();
+  if (interp && *interp) {
+    printf("[Main] --- PHASE 1: PT_INTERP Handler ---\n");
+    printf("[Main] Interpreter path: %s\n", interp);
+    printf("[Main] Dynamic program detected - would use runtime_loader\n");
+    printf("[Main] [Phase 1 TODO] Load and initialize runtime_loader\n");
+    printf("[Main] [Phase 1 TODO] Resolve 11 core symbols\n");
+    printf("[Main] [Phase 1 TODO] Prepare for execution\n");
+  } else {
+    printf("[Main] Static program - no interpreter needed\n");
+  }
+  
   delete image;
   
   printf("[Main] Test completed successfully\n");

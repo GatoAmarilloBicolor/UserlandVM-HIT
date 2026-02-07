@@ -127,6 +127,9 @@ public:
 	virtual uint32_t GetProgramHeaderAlign(uint32_t index) = 0;
 	virtual uint32_t GetProgramHeaderSize() = 0;
 	virtual bool ReadMemory(uint32_t addr, void* buffer, size_t size) = 0;
+	
+	// PT_INTERP handler - Phase 1
+	virtual const char *GetInterpreter() = 0;
 };
 
 template <typename Class>
@@ -149,6 +152,7 @@ private:
 	uint32 *fHash{};
 	const char *fStrings{};
 	bool fIsDynamic{false};
+	const char *fInterpreter{nullptr};  // PT_INTERP path
 
 	void *FromVirt(Address virtAdr) {return (void*)((intptr_t)virtAdr + fDelta);}
 	Address ToVirt(void *adr) {return (Address)((intptr_t)adr - fDelta);}
@@ -183,4 +187,5 @@ public:
 	uint32_t GetProgramHeaderAlign(uint32_t index) override {return fPhdrs[index].p_align;}
 	uint32_t GetProgramHeaderSize() override {return fHeader.e_phentsize;}
 	bool ReadMemory(uint32_t addr, void* buffer, size_t size) override;
+	const char *GetInterpreter() override {return fInterpreter;}
 };

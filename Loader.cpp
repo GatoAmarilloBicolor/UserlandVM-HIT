@@ -174,7 +174,18 @@ template <typename Class> void ElfImageImpl<Class>::LoadSegments() {
       break;
     }
     case PT_INTERP: {
-      printf("[ELF] Interpreter segment found\n");
+      printf("[ELF] Interpreter segment found at vaddr=%#" PRIx64 ", size=%zu\n",
+             (uint64)phdr.p_vaddr, (size_t)phdr.p_memsz);
+      // Read interpreter path from memory
+      void *interpAddr = FromVirt(phdr.p_vaddr);
+      // Validate it's within bounds
+      if ((addr_t)interpAddr >= (addr_t)fBase && 
+          (addr_t)interpAddr + phdr.p_memsz <= (addr_t)fBase + fSize) {
+        fInterpreter = (const char *)interpAddr;
+        printf("[ELF] Interpreter: %s\n", fInterpreter);
+      } else {
+        printf("[ELF] WARNING: Interpreter address out of bounds\n");
+      }
       break;
     }
     default:
