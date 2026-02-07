@@ -60,41 +60,107 @@ typedef uint32_t cpu_subtype;
 // Status Codes (from Haiku, but defined independently)
 ///////////////////////////////////////////////////////////////////////////////
 
+#ifndef B_OK
 #define B_OK                       0
+#endif
+#ifndef B_ERROR
 #define B_ERROR                    -1
+#endif
+#ifndef B_NO_MEMORY
 #define B_NO_MEMORY                -2
+#endif
+#ifndef B_BAD_VALUE
 #define B_BAD_VALUE                -3
+#endif
+#ifndef B_BAD_TYPE
 #define B_BAD_TYPE                 -4
+#endif
+#ifndef B_NAME_NOT_FOUND
 #define B_NAME_NOT_FOUND           -5
+#endif
+#ifndef B_ENTRY_NOT_FOUND
 #define B_ENTRY_NOT_FOUND          -6
+#endif
+#ifndef B_PERMISSION_DENIED
 #define B_PERMISSION_DENIED        -7
+#endif
+#ifndef B_FILE_EXISTS
 #define B_FILE_EXISTS              -8
+#endif
+#ifndef B_FILE_NOT_FOUND
 #define B_FILE_NOT_FOUND           -9
+#endif
+#ifndef B_NOT_ALLOWED
 #define B_NOT_ALLOWED              -10
+#endif
+#ifndef B_INTERRUPTED
 #define B_INTERRUPTED              -11
+#endif
+#ifndef B_NO_INIT
 #define B_NO_INIT                  -12
+#endif
+#ifndef B_BUSY
 #define B_BUSY                     -13
+#endif
+#ifndef B_TIMED_OUT
 #define B_TIMED_OUT                -14
+#endif
+#ifndef B_CANCELED
 #define B_CANCELED                 -15
+#endif
+#ifndef B_WOULD_BLOCK
 #define B_WOULD_BLOCK              -16
+#endif
+#ifndef B_FILE_ERROR
 #define B_FILE_ERROR               -17
+#endif
+#ifndef B_IO_ERROR
 #define B_IO_ERROR                 -18
+#endif
+#ifndef B_NOT_SUPPORTED
 #define B_NOT_SUPPORTED            -13
+#endif
+#ifndef B_BUFFER_OVERFLOW
 #define B_BUFFER_OVERFLOW          -22
+#endif
+#ifndef B_BAD_DATA
+#define B_BAD_DATA                 -24
+#endif
+#ifndef B_DEV_NOT_READY
+#define B_DEV_NOT_READY            -32
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 // Memory Area Flags (from Haiku)
 ///////////////////////////////////////////////////////////////////////////////
 
+#ifndef B_READ_AREA
 #define B_READ_AREA                0x01
+#endif
+#ifndef B_WRITE_AREA
 #define B_WRITE_AREA               0x02
+#endif
+#ifndef B_EXECUTE_AREA
 #define B_EXECUTE_AREA             0x04
+#endif
+#ifndef B_READ_WRITE
 #define B_READ_WRITE               (B_READ_AREA | B_WRITE_AREA)
+#endif
+#ifndef B_NO_LOCK
 #define B_NO_LOCK                  0x00
+#endif
+#ifndef B_ANY_ADDRESS
 #define B_ANY_ADDRESS              0x01
+#endif
+#ifndef B_EXACT_ADDRESS
 #define B_EXACT_ADDRESS            0x02
+#endif
+#ifndef B_LAZY_LOCK
 #define B_LAZY_LOCK                0x04
+#endif
+#ifndef B_FULL_LOCK
 #define B_FULL_LOCK                0x08
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 // File Flags (from Haiku, mapping to POSIX)
@@ -102,12 +168,24 @@ typedef uint32_t cpu_subtype;
 
 #include <fcntl.h>
 
+#ifndef B_READ_ONLY
 #define B_READ_ONLY                O_RDONLY
+#endif
+#ifndef B_WRITE_ONLY
 #define B_WRITE_ONLY               O_WRONLY
+#endif
+#ifndef B_READ_WRITE_MODE
 #define B_READ_WRITE_MODE          O_RDWR
+#endif
+#ifndef B_CREATE_FILE
 #define B_CREATE_FILE              O_CREAT
+#endif
+#ifndef B_ERASE_FILE
 #define B_ERASE_FILE               O_TRUNC
+#endif
+#ifndef B_OPEN_AT_END
 #define B_OPEN_AT_END              O_APPEND
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 // Thread/Team Priorities (from Haiku)
