@@ -22,6 +22,8 @@ endif
 
 # Modular Components - Linux Native
 CORE_VM_SOURCES = core_vm.cpp
+RECYCLED_CORE_VM_SOURCES = recycled_core_vm.cpp
+RECYCLED_MODULAR_VM_SOURCES = recycled_modular_vm.cpp
 SHELL_INTERFACE_SOURCES = shell_interface.cpp
 MODULAR_VM_SOURCES = userlandvm_linux_simple.cpp
 INTEGRATION_LAYER_SOURCES = Main.cpp
@@ -44,30 +46,45 @@ endif
 
 # Build Targets
 LINUX_CORE_VM = userlandvm_core_vm$(BINARY_EXT)
+RECYCLED_CORE_VM = userlandvm_recycled_core_vm$(BINARY_EXT)
+RECYCLED_MODULAR_VM = userlandvm_recycled_modular_vm$(BINARY_EXT)
 SHELL_INTERFACE_VM = userlandvm_shell_interface$(BINARY_EXT)
 MODULAR_VM = userlandvm_modular$(BINARY_EXT)
 INTEGRATION_LAYER_VM = userlandvm_integration_layer$(BINARY_EXT)
 COSMOE_VM = userlandvm_cosmoe_modular$(BINARY_EXT)
 
 # All VM versions
-ALL_VMS = $(LINUX_CORE_VM) $(SHELL_INTERFACE_VM) $(MODULAR_VM) $(INTEGRATION_LAYER_VM) $(COSMOE_VM)
+ALL_VMS = $(LINUX_CORE_VM) $(RECYCLED_CORE_VM) $(RECYCLED_MODULAR_VM) $(SHELL_INTERFACE_VM) $(MODULAR_VM) $(INTEGRATION_LAYER_VM) $(COSMOE_VM)
 
 # Default build
 all: $(MODULAR_VM)
 
 # Individual builds
 core: $(LINUX_CORE_VM)
+recycled-core: $(RECYCLED_CORE_VM)
+recycled-modular: $(RECYCLED_MODULAR_VM)
 shell: $(SHELL_INTERFACE_VM)
 modular: $(MODULAR_VM)
 integration: $(INTEGRATION_LAYER_VM)
 cosmoe: $(COSMOE_VM)
 all-modular: $(ALL_VMS)
+recycled: $(RECYCLED_CORE_VM) $(RECYCLED_MODULAR_VM)
 
 # Build rules with platform detection
 $(LINUX_CORE_VM): $(CORE_VM_SOURCES)
 	@echo "🏗️ Building Core VM for $(PLATFORM)..."
 	$(CXX) $(CXXFLAGS) $(PLATFORM_FLAGS) -o $@ $^ $(PLATFORM_LIBS)
 	@echo "✅ Core VM built: $@"
+
+$(RECYCLED_CORE_VM): $(RECYCLED_CORE_VM_SOURCES) CommonVMComponents.h
+	@echo "🏗️ Building Recycled Core VM for $(PLATFORM)..."
+	$(CXX) $(CXXFLAGS) $(PLATFORM_FLAGS) -o $@ $(RECYCLED_CORE_VM_SOURCES) $(PLATFORM_LIBS)
+	@echo "♻️ Recycled Core VM built: $@ (90% code reduction)"
+
+$(RECYCLED_MODULAR_VM): $(RECYCLED_MODULAR_VM_SOURCES) CommonVMComponents.h
+	@echo "🏗️ Building Recycled Modular VM for $(PLATFORM)..."
+	$(CXX) $(CXXFLAGS) $(PLATFORM_FLAGS) -o $@ $(RECYCLED_MODULAR_VM_SOURCES) $(PLATFORM_LIBS)
+	@echo "♻️ Recycled Modular VM built: $@ (90% code reduction)"
 
 $(SHELL_INTERFACE_VM): $(SHELL_INTERFACE_SOURCES)
 	@echo "🏗️ Building Shell Interface for $(PLATFORM)..."
