@@ -162,8 +162,7 @@ status_t GuestElfLoader::Load(const char *path, X86_32GuestContext &context,
     }
 
     // Setup context
-    // Initialize all general purpose registers to zero to avoid undefined
-    // behavior
+    // Initialize all general purpose registers to zero to avoid undefined behavior
     context.Registers().eax = 0;
     context.Registers().ebx = 0;
     context.Registers().ecx = 0;
@@ -344,8 +343,19 @@ status_t GuestElfLoader::Load(const char *path, X86_32GuestContext &context,
                                stackSize + 4096);
 
   // Initialize context registers
-  // For ET_DYN, add load_base to entry point
-  uint32_t actual_entry = e_entry + load_base;
+  // For ET_DYN binaries, entry point is already relative to load base
+  // No need to add load_base again - this causes double addition
+  uint32_t actual_entry;
+  if (fHeader.e_type == ET_DYN) {
+    // For ET_DYN, entry point should already be relative to mapped base
+    actual_entry = e_entry;  // Entry is already correct
+    printf("[ELFLoader] ET_DYN: Using relative entry point 0x%08x\n", e_entry);
+  } else {
+    // For ET_EXEC, we need to add load base
+    actual_entry = e_entry + load_base;
+    printf("[ELFLoader] ET_EXEC: Using absolute entry point 0x%08x + 0x%08x = 0x%08x\n", e_entry, load_base, actual_entry);
+  }
+  
   context.Registers().eip = actual_entry;
   context.Registers().esp = stackBase;
   context.Registers().ebp = 0; // EBP should be NULL initially

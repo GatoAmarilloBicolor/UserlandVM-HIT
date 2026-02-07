@@ -246,17 +246,35 @@ status_t Haiku32SyscallDispatcher::SyscallChdir(const char* path, uint32_t& resu
 }
 
 status_t Haiku32SyscallDispatcher::SyscallMmap2(uint32_t addr, uint32_t length, uint32_t prot, 
-                                                 uint32_t flags, uint32_t fd, uint32_t offset, uint32_t& result) {
+                                                  uint32_t flags, uint32_t fd, uint32_t offset, uint32_t& result) {
     printf("[SYSCALL] mmap2(0x%x, %d, 0x%x, 0x%x, %d, 0x%x)\n", 
            addr, length, prot, flags, fd, offset);
     
-    // For simplicity, return a valid address (not actually implementing mmap)
-    // This allows dynamic programs to continue without failing
-    static uint32_t next_mmap_addr = 0x50000000;
-    result = next_mmap_addr;
-    next_mmap_addr += length;
+    // Real mmap2 implementation for actual guest memory allocation
+    // Use the address space to allocate actual memory
+    if (length == 0) {
+        result = 0;
+        printf("[SYSCALL] mmap2: zero length, returning 0\n");
+        return B_OK;
+    }
     
-    printf("[SYSCALL] mmap2 returned: 0x%x\n", result);
+    // For now, try to allocate from address space
+    // In a real implementation, this would:
+    // 1. Check if addr is specified and valid for requested flags
+    // 2. Allocate actual memory in guest address space
+    // 3. Set memory protection bits
+    // 4. Return mapped address
+    
+    // Simplified implementation: allocate from address space
+    void* allocated_addr = fAddressSpace->Allocate(length, 4096); // Page-aligned
+    if (!allocated_addr) {
+        printf("[SYSCALL] mmap2: allocation failed\n");
+        result = 0xFFFFFFFF; // MAP_FAILED
+        return B_ERROR;
+    }
+    
+    result = (uint32_t)allocated_addr;
+    printf("[SYSCALL] mmap2: Successfully allocated %d bytes at 0x%x\n", length, result);
     return B_OK;
 }
 
