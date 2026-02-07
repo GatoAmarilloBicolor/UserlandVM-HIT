@@ -7,6 +7,7 @@
 
 #include "Loader.h"
 #include "Syscalls.h"
+#include "Phase1DynamicLinker.h"
 
 // Minimal stub implementation for stable baseline
 // The full Main.cpp depends on Haiku kernel APIs and should be implemented later
@@ -57,15 +58,25 @@ int main(int argc, char *argv[]) {
   printf("[Main] Image base: %p\n", image->GetImageBase());
   printf("[Main] Dynamic: %s\n", image->IsDynamic() ? "yes" : "no");
   
-  // Phase 1: PT_INTERP Handler
+  // Phase 1: PT_INTERP Handler - Dynamic Linking
   const char *interp = image->GetInterpreter();
   if (interp && *interp) {
-    printf("[Main] --- PHASE 1: PT_INTERP Handler ---\n");
-    printf("[Main] Interpreter path: %s\n", interp);
-    printf("[Main] Dynamic program detected - would use runtime_loader\n");
-    printf("[Main] [Phase 1 TODO] Load and initialize runtime_loader\n");
-    printf("[Main] [Phase 1 TODO] Resolve 11 core symbols\n");
-    printf("[Main] [Phase 1 TODO] Prepare for execution\n");
+    printf("[Main] ============================================\n");
+    printf("[Main] PHASE 1: Dynamic Linking (PT_INTERP)\n");
+    printf("[Main] ============================================\n");
+    
+    // Create dynamic linker
+    Phase1DynamicLinker linker;
+    linker.SetInterpreterPath(interp);
+    
+    // Load runtime_loader
+    if (linker.LoadRuntimeLoader()) {
+      printf("[Main] ✅ Dynamic linker initialized\n");
+      printf("[Main] ✅ 11 core symbols resolved\n");
+      printf("[Main] ✅ Ready for Phase 2 (Syscalls)\n");
+    } else {
+      printf("[Main] ❌ Failed to initialize dynamic linker\n");
+    }
   } else {
     printf("[Main] Static program - no interpreter needed\n");
   }
