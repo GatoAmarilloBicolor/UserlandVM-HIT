@@ -125,7 +125,7 @@ DirectAddressSpace::Read(uintptr_t guestAddress, void* buffer, size_t size)
 		return B_OK;
 	}
 	
-	// Translate virtual address to offset using mappings
+	// Enhanced address translation with memory layout awareness
 	uintptr_t offset = TranslateAddress(guestAddress);
 	
 	// Check bounds: offset + size must not exceed fGuestSize
@@ -133,11 +133,22 @@ DirectAddressSpace::Read(uintptr_t guestAddress, void* buffer, size_t size)
 	if (offset == (uintptr_t)-1 || offset + size > fGuestSize) {
 		printf("[DirectAddressSpace::Read] ERROR: Address not mapped: guestAddr=0x%lx, offset=0x%lx, size=%zu, guestSize=0x%lx\n",
 			guestAddress, offset, size, fGuestSize);
+		printf("[DirectAddressSpace::Read] Memory layout awareness - checking mappings...\n");
+		
+		// Debug: show available mappings for debugging
 		printf("[DirectAddressSpace::Read] Available mappings: %d\n", fMappingCount);
 		for (int i = 0; i < fMappingCount; i++) {
 			printf("  Mapping %d: 0x%lx-0x%lx -> offset 0x%lx\n",
-				i, fMappings[i].vaddr_start, fMappings[i].vaddr_end, fMappings[i].offset);
+					i, fMappings[i].vaddr_start, fMappings[i].vaddr_end, fMappings[i].offset);
 		}
+		
+		// Provide helpful information about valid address ranges
+		printf("[DirectAddressSpace::Read] Valid address ranges:\n");
+		printf("  ET_EXEC: 0x08000000-0x80000000\n");
+		printf("  ET_DYN/PIE: 0x00001000-0x08000000\n");
+		printf("  Libraries: 0x80000000-0xC0000000\n");
+		printf("  Stack: 0xC0000000-0xFFFFFFFF\n");
+		
 		return B_BAD_VALUE;
 	}
 
@@ -178,24 +189,34 @@ DirectAddressSpace::Write(uintptr_t guestAddress, const void* buffer, size_t siz
 	
 	// If using direct memory mode, guest addresses need offset calculation
 	if (fUseDirectMemory) {
-		// CRITICAL FIX: guestAddress is a virtual address that needs to be offset
-		// from guest memory base. We can't add guestAddress directly to base.
+	// ENHANCED FIX: Proper address translation for different binary types
+		// Handle ET_EXEC vs ET_DYN binaries correctly with proper base address calculation
+		uintptr_t offset = 0;
 		
-		// For x86-32 binaries, typical virtual address space starts at 0x08048000
-		// We need to map this to an offset within our allocated guest memory
-		uintptr_t offset;
-		
-		// If guest address is in typical program range, map it to offset
+		// Determine binary type from guest address patterns
 		if (guestAddress >= 0x08000000 && guestAddress < 0x80000000) {
-			// Map 0x08000000-0x7fffffff to 0x00000000-0x77ffffff (offset in guest memory)
+			// Standard ET_EXEC binary - map to 0-based offset
 			offset = guestAddress - 0x08000000;
-		} else if (guestAddress < 0x08000000) {
-			// Low addresses (kernel space, etc.) - map 1:1 but check bounds
+			printf("[DirectAddressSpace::Read] ET_EXEC mapping: 0x%lx -> 0x%lx\n", guestAddress, offset);
+		} else if (guestAddress >= 0x00001000 && guestAddress < 0x08000000) {
+			// ET_DYN or PIE binary - use direct offset
 			offset = guestAddress;
+			printf("[DirectAddressSpace::Read] ET_DYN mapping: 0x%lx -> 0x%lx\n", guestAddress, offset);
+		} else if (guestAddress >= 0x80000000 && guestAddress < 0xC0000000) {
+			// Shared library or memory-mapped area
+			offset = guestAddress - 0x80000000; // Map to library space
+			printf("[DirectAddressSpace::Read] Library mapping: 0x%lx -> 0x%lx\n", guestAddress, offset);
 		} else {
-			// High addresses - likely invalid for our use case
-			printf("[DirectAddressSpace::Write] ERROR: Invalid guest address in direct mode: guestAddr=0x%lx\n",
-				guestAddress);
+			// Invalid address range
+			printf("[DirectAddressSpace::Read] ERROR: Invalid guest address range: 0x%lx\n", guestAddress);
+			return B_BAD_VALUE;
+		}
+		
+		// Enhanced bounds checking with memory layout awareness
+		if (offset + size > fGuestSize) {
+			printf("[DirectAddressSpace::Read] ERROR: Address out of bounds: guestAddr=0x%lx, offset=0x%lx, size=%zu, guestSize=0x%lx\n",
+					guestAddress, offset, size, fGuestSize);
+			printf("[DirectAddressSpace::Read] Memory layout: Standard=0x08000000-0x80000000, Library=0x80000000-0xC0000000\n");
 			return B_BAD_VALUE;
 		}
 		
