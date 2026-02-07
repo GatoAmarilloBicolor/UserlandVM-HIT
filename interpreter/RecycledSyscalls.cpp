@@ -8,6 +8,7 @@
 #include "RecycledSyscalls.h"
 #include "X86_32GuestContext.h"
 #include "AddressSpace.h"
+#include "../GuestMemoryOperations.h"
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -114,12 +115,16 @@ int RecycledSyscalls::SysWrite(X86_32GuestContext& ctx) {
     if (fd == STDOUT_FILENO || fd == STDERR_FILENO) {
         fMetrics.fast_path_syscalls++;
         
-        // Read guest memory
+        // Read guest memory safely
+        GuestMemoryOperations guest_mem(ctx->address_space);
         char* buffer = new char[count + 1];
         memset(buffer, 0, count + 1);
         
-        // TODO: Read from guest memory properly
-        // For now, just write directly
+        if (!guest_mem.ReadStringFromGuest(buffer_addr, buffer, count)) {
+            delete[] buffer;
+            return -EFAULT;
+        }
+        
         int result = write(fd, buffer, count);
         
         delete[] buffer;

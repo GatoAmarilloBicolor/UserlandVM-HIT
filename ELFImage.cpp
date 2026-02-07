@@ -229,7 +229,28 @@ uint32_t ElfImage::GetEntry() const {
 }
 
 void* ElfImage::GetBaseAddress() const {
-    // For simplicity, return 0 for now
+    // Calculate base address from program headers
+    if (!fProgramHeaders) {
+        return nullptr;
+    }
+    
+    uint32_t min_addr = 0xFFFFFFFF;
+    
+    // Find the lowest loadable segment address
+    for (int i = 0; i < fHeader.e_phnum; i++) {
+        if (fProgramHeaders[i].p_type == PT_LOAD) {
+            if (fProgramHeaders[i].p_vaddr < min_addr) {
+                min_addr = fProgramHeaders[i].p_vaddr;
+            }
+        }
+    }
+    
+    // If we found a valid address, return it
+    if (min_addr != 0xFFFFFFFF) {
+        printf("[linux.cosmoe] [ELF_IMAGE] Calculated base address: 0x%x\n", min_addr);
+        return reinterpret_cast<void*>(min_addr);
+    }
+    
     return nullptr;
 }
 

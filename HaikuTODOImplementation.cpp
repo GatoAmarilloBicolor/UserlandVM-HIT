@@ -48,7 +48,7 @@ bool HaikuCommpageManager::MapCommpage(uint32_t target_address) {
     void* mapped = mmap(reinterpret_cast<void*>(target_address), 
                      COMMPAGE_SIZE, 
                      PROT_READ, 
-                     MAP_PRIVATE | MAP_ANONYMOUS, 
+                     MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, 
                      -1, 0);
     
     if (mapped == MAP_FAILED) {
