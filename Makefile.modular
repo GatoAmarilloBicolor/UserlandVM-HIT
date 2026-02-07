@@ -14,12 +14,15 @@ INTEGRATION_LAYER_SOURCES = Main.cpp
 # Cosmoe Integration (Optional - Only if Cosmoe is available)
 COSMOE_AVAILABLE = $(shell test -d sysroot/include/Be.h && echo "1" || echo "0")
 
+# Binary naming convention: nombre_binario.cosmoelinux for native system binaries
+BINARY_EXT = .cosmoelinux
+
 # Build Targets
-LINUX_CORE_VM = userlandvm_core_vm
-SHELL_INTERFACE_VM = userlandvm_shell_interface
-MODULAR_VM = userlandvm_modular
-INTEGRATION_LAYER_VM = userlandvm_integration_layer
-COSMOE_VM = userlandvm_cosmoe_modular
+LINUX_CORE_VM = userlandvm_core_vm$(BINARY_EXT)
+SHELL_INTERFACE_VM = userlandvm_shell_interface$(BINARY_EXT)
+MODULAR_VM = userlandvm_modular$(BINARY_EXT)
+INTEGRATION_LAYER_VM = userlandvm_integration_layer$(BINARY_EXT)
+COSMOE_VM = userlandvm_cosmoe_modular$(BINARY_EXT)
 
 # All VM versions
 ALL_VMS = $(LINUX_CORE_VM) $(SHELL_INTERFACE_VM) $(MODULAR_VM) $(INTEGRATION_LAYER_VM) $(COSMOE_VM)
@@ -63,6 +66,7 @@ ifeq ($(COSMOE_AVAILABLE),1)
 	@echo "✅ Cosmoe VM built: $@"
 else
 	@echo "❌ Cosmoe not available - skipping build"
+	@echo "ℹ️ Note: Native binaries should use .cosmoelinux extension"
 endif
 
 # Cosmoe Setup
@@ -101,22 +105,23 @@ build-cosmoe:
 # Test different configurations
 test-linux:
 	@echo "🧪 Testing Linux Core VM..."
-	./$(LINUX_CORE_VM) test_haiku_simple
+	./$(LINUX_CORE_VM) test_haiku_simple$(BINARY_EXT)
 
 test-modular:
 	@echo "🧪 Testing Modular VM..."
-	./$(MODULAR_VM) test_haiku_simple
+	./$(MODULAR_VM) test_haiku_simple$(BINARY_EXT)
 
 test-integration:
 	@echo "🧪 Testing Integration Layer..."
-	./$(INTEGRATION_LAYER_VM) test_haiku_simple
+	./$(INTEGRATION_LAYER_VM) test_haiku_simple$(BINARY_EXT)
 
 test-cosmoe:
 ifeq ($(COSMOE_AVAILABLE),1)
 	@echo "🧪 Testing Cosmoe Integration..."
-	./$(COSMOE_VM) test_haiku_simple
+	./$(COSMOE_VM) test_haiku_simple$(BINARY_EXT)
 else
 	@echo "❌ Cosmoe not available"
+	@echo "ℹ️ Note: Test binaries should have .cosmoelinux extension"
 endif
 
 # All tests
@@ -124,20 +129,20 @@ test-all: test-linux test-modular test-integration
 ifeq ($(COSMOE_AVAILABLE),1)
 	@echo "🧪 Testing All Configurations (including Cosmoe)..."
 	@echo "1. Core VM Test..."
-	./$(LINUX_CORE_VM) test_haiku_simple || echo "❌ Core VM test failed"
+	./$(LINUX_CORE_VM) test_haiku_simple$(BINARY_EXT) || echo "❌ Core VM test failed"
 	@echo "2. Modular VM Test..."
-	./$(MODULAR_VM) test_haiku_simple || echo "❌ Modular VM test failed"
+	./$(MODULAR_VM) test_haiku_simple$(BINARY_EXT) || echo "❌ Modular VM test failed"
 	@echo "3. Integration Layer Test..."
-	./$(INTEGRATION_LAYER_VM) test_haiku_simple || echo "❌ Integration Layer test failed"
+	./$(INTEGRATION_LAYER_VM) test_haiku_simple$(BINARY_EXT) || echo "❌ Integration Layer test failed"
 	@echo "4. Cosmoe Integration Test..."
-	./$(COSMOE_VM) test_haiku_simple || echo "❌ Cosmoe Integration test failed"
+	./$(COSMOE_VM) test_haiku_simple$(BINARY_EXT) || echo "❌ Cosmoe Integration test failed"
 else
 	@echo "1. Core VM Test..."
-	./$(LINUX_CORE_VM) test_haiku_simple || echo "❌ Core VM test failed"
+	./$(LINUX_CORE_VM) test_haiku_simple$(BINARY_EXT) || echo "❌ Core VM test failed"
 	@echo "2. Modular VM Test..."
-	./$(MODULAR_VM) test_haiku_simple || echo "❌ Modular VM test failed"
+	./$(MODULAR_VM) test_haiku_simple$(BINARY_EXT) || echo "❌ Modular VM test failed"
 	@echo "3. Integration Layer Test..."
-	./$(INTEGRATION_LAYER_VM) test_haiku_simple || echo "❌ Integration Layer test failed"
+	./$(INTEGRATION_LAYER_VM) test_haiku_simple$(BINARY_EXT) || echo "❌ Integration Layer test failed"
 	@echo "❌ Skipping Cosmoe tests"
 endif
 

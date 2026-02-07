@@ -73,6 +73,10 @@ public:
     void* GetPointer(uint32_t addr) {
         return addr < memory.size() ? memory.data() + addr : nullptr;
     }
+    
+    size_t GetSize() const {
+        return memory.size();
+    }
 };
 
 // Simple Program Info
