@@ -6,6 +6,7 @@
  */
 
 #include "RecycledSyscalls.h"
+#include "../SignalHandling.h"
 #include "X86_32GuestContext.h"
 #include "AddressSpace.h"
 #include "../GuestMemoryOperations.h"
@@ -120,9 +121,23 @@ int RecycledSyscalls::SysWrite(X86_32GuestContext& ctx) {
         char* buffer = new char[count + 1];
         memset(buffer, 0, count + 1);
         
-        if (!guest_mem.ReadStringFromGuest(buffer_addr, buffer, count)) {
+        // Use SignalHandling for enhanced memory access
+        if (!SignalHandling::CheckReadAccess((uintptr_t)buffer_addr, count)) {
+            printf("[X86_SYSCALLS] INT 0x80 - read: Memory access denied (PROTECTION FAULT)\n");
             delete[] buffer;
-            return -EFAULT;
+            return -EFAULT; // EACCES - Permission denied
+        }
+        
+        if (!SignalHandling::CheckReadAccess((uintptr_t)buffer_addr, count)) {
+            printf("[X86_SYSCALLS] INT 0x80 - read: Memory protection fault (SEGMENTATION)\n");
+            delete[] buffer;
+            return -EFAULT; // EFAULT - Segmentation fault
+        }
+        
+        if (!guest_mem.ReadStringFromGuest(buffer_addr, buffer, count)) {
+            printf("[X86_SYSCALLS] INT 0x80 - read: General I/O error\n");
+            delete[] buffer;
+            return -EIO; // EIO - I/O error
         }
         
         int result = write(fd, buffer, count);
@@ -480,7 +495,9 @@ bool RecycledSyscalls::SetupHandlers() {
     };
     
     fHandlers[SYS_KILL] = [this](X86_32GuestContext& ctx, const uint32_t* args) {
-        return SysKill(ctx);
+        printf("[X86_SYSCALLS] INT 0x80 - kill(%d, %d) - REAL HANDLER\n", 
+               ctx.eax, ctx.ebx);
+        return SignalHandling::HandleTermination();
     };
     
     fHandlers[SYS_SIGACTION] = [this](X86_32GuestContext& ctx, const uint32_t* args) {
@@ -507,9 +524,10 @@ bool RecycledSyscalls::SetupProcessInfo() {
 
 void RecycledSyscalls::LogSyscall(const char* name, uint32_t syscall_num, int result) const {
     if (result < 0) {
-        printf("[SYSCALL] %s (%u) failed: %d\n", name, syscall_num, result);
-    } else {
-        fMetrics.syscall_counts[syscall_num]++;
+            printf("[RECYCLED_SYSCALL] %s (%u) failed: %d\n", name, syscall_num, result);
+        } else {
+            printf("[RECYCLED_SYSCALL] %s (%u) succeeded: %d\n", name, syscall_num, result);
+        }
     }
 }
 
