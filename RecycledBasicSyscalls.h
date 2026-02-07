@@ -2,6 +2,9 @@
 // Optimized and recycled implementations of write, exit, read syscalls
 // Author: Recycled Syscalls Implementation 2026-02-07
 
+#ifndef RECYCLED_BASIC_SYSCALLS_H
+#define RECYCLED_BASIC_SYSCALLS_H
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -238,3 +241,5 @@ void ApplyRecycledBasicSyscalls() {
     printf("[GLOBAL_RECYCLED] Recycled basic syscalls ready for real functionality!\n");
     printf("[GLOBAL_RECYCLED] UserlandVM-HIT now has optimized syscall handling!\n");
 }
+
+#endif // RECYCLED_BASIC_SYSCALLS_H
