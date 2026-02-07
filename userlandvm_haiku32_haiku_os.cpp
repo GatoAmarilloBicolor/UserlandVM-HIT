@@ -13,12 +13,17 @@
 #include <cstdlib>
 #include <ctime>
 #include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <limits.h>
 
 // Haiku OS constants (100% Haiku compliance)
 #define HAIKU_KERNEL_BASE 0x80000000
 #define HAIKU_USER_BASE   0x01000000
 #define B_OS_NAME_LENGTH 32
 #define B_MAX_COMMAND_LINE 1024
+#define B_FILE_NAME_LENGTH 1024
 #define B_PATH_NAME_LENGTH B_FILE_NAME_LENGTH
 
 // Haiku OS error codes (exact Haiku values)
@@ -283,7 +288,7 @@ public:
         }
         
         // Check for Haiku/BeOS characteristics
-        bool is_haiku_binary = (header.e_ident[7] == 9); // Haiku/BeOS ELF OSABI
+        bool is_haiku_binary = (header.ident[7] == 9); // Haiku/BeOS ELF OSABI
         program_info->is_haiku_native = is_haiku_binary;
         
         // Check for PT_INTERP segment (dynamic linking required)
@@ -301,7 +306,7 @@ public:
                 // Read interpreter path
                 char interp_path[256];
                 file.seekg(phdr.offset);
-                file.read(interp_path, std::min(phdr.filesz, sizeof(interp_path)-1));
+                file.read(interp_path, std::min(static_cast<size_t>(phdr.filesz), sizeof(interp_path)-1));
                 interp_path[phdr.filesz] = '\0';
                 printf("[HAIKU_VM] Haiku runtime loader: %s\n", interp_path);
                 break;
@@ -536,6 +541,91 @@ public:
                     break;
                 }
                 
+            case 0x95: // _kern_read (149)
+                {
+                    uint32_t fd = regs.ebx;
+                    uint32_t buf = regs.ecx;
+                    uint32_t count = regs.edx;
+                    
+                    printf("[HAIKU_SYSCALL] _kern_read(fd=%d, buf=0x%x, count=%d)\n", fd, buf, count);
+                    
+                    if (fd == 0) { // stdin
+                        char* data = new char[count];
+                        ssize_t result = read(fd, data, count);
+                        if (result >= 0) {
+                            haiku_memory.Write(buf, data, result);
+                            regs.eax = result;
+                        } else {
+                            regs.eax = B_ERROR;
+                        }
+                        delete[] data;
+                    } else {
+                        regs.eax = B_BAD_VALUE; // Invalid fd
+                    }
+                    break;
+                }
+                
+            case 0x72: // _kern_open (114)
+                {
+                    uint32_t pathname = regs.ebx;
+                    uint32_t flags = regs.ecx;
+                    uint32_t mode = regs.edx;
+                    
+                    printf("[HAIKU_SYSCALL] _kern_open(path=0x%x, flags=0x%x, mode=0x%x)\n", pathname, flags, mode);
+                    
+                    char path_buffer[256];
+                    if (haiku_memory.Read(pathname, path_buffer, sizeof(path_buffer)-1)) {
+                        int fd = open(path_buffer, flags, mode);
+                        if (fd >= 0) {
+                            regs.eax = fd;
+                        } else {
+                            regs.eax = B_FILE_NOT_FOUND;
+                        }
+                    } else {
+                        regs.eax = B_BAD_VALUE;
+                    }
+                    break;
+                }
+                
+            case 0x9E: // _kern_close (158)
+                {
+                    uint32_t fd = regs.ebx;
+                    
+                    printf("[HAIKU_SYSCALL] _kern_close(fd=%d)\n", fd);
+                    
+                    if (fd > 2) { // Don't close stdin/stdout/stderr
+                        close(fd);
+                        regs.eax = B_OK;
+                    } else {
+                        regs.eax = B_BAD_VALUE;
+                    }
+                    break;
+                }
+                
+            case 0x79: // _kern_seek (121)
+                {
+                    uint32_t fd = regs.ebx;
+                    uint32_t offset = regs.ecx;
+                    uint32_t whence = regs.edx;
+                    
+                    printf("[HAIKU_SYSCALL] _kern_seek(fd=%d, offset=%d, whence=%d)\n", fd, offset, whence);
+                    
+                    off_t result = lseek(fd, offset, whence);
+                    if (result >= 0) {
+                        regs.eax = result;
+                    } else {
+                        regs.eax = B_ERROR;
+                    }
+                    break;
+                }
+                
+            case 0x29: // _kern_exit_team (41)
+                printf("[HAIKU_SYSCALL] _kern_exit_team(%d) - Haiku team termination\n", regs.ebx);
+                program_info->end_time = time(nullptr);
+                program_info->exit_status = regs.ebx;
+                regs.eip = 0; // Stop execution
+                break;
+                
             default:
                 printf("[HAIKU_SYSCALL] unsupported Haiku syscall 0x%x\n", syscall_num);
                 regs.eax = B_ERROR;
@@ -667,7 +757,7 @@ void printHaikuUsage(const char* program) {
     std::cout << "100% Haiku OS Features:" << std::endl;
     std::cout << "  - Full Haiku OS API compliance" << std::endl;
     std::cout << "  - Exact Haiku syscall handling" << std::endl;
-    std::endl;
+    std::cout << std::endl;
     std::cout << "Output format: [shell_working]: virtualized_program_name(program_arguments)" << std::endl;
 }
 
