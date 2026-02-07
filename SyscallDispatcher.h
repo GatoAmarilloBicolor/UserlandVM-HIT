@@ -4,6 +4,8 @@
  */
 #pragma once
 
+#include "PlatformTypes.h"
+
 class GuestContext;
 
 // Interfaz para el manejador de llamadas al sistema.
