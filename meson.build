@@ -75,16 +75,16 @@ executable(
 	'Main.cpp',
 	
 	# Architecture-specific components
-	# 'VirtualCpuX86Native.cpp',  # TODO: Fix - has issues
+	# 'VirtualCpuX86Native.cpp',  # TODO: Requires _kern_generic_syscall
 	# 'VirtualCpuX86NativeCode.S',
 	# 'VirtualCpuX86Test.cpp',
-	# 'X86_32GuestContext.cpp',  # TODO: Check if needed
-	# 'InterpreterX86_32.cpp',  # TODO: Check if needed
-	# 'StubFunctions.cpp',  # TODO: Check if needed
-	# 'DebugOutput.cpp',  # TODO: Check if needed
-	# 'FPUInstructionHandler.cpp',  # TODO: Check if needed
-	# 'FloatingPointUnit.cpp',  # TODO: Check if needed
-	# 'OptimizedX86Executor.cpp',  # TODO: Check if needed
+	'X86_32GuestContext.cpp',
+	'InterpreterX86_32.cpp',
+	'StubFunctions.cpp',
+	'DebugOutput.cpp',
+	'FPUInstructionHandler.cpp',
+	'FloatingPointUnit.cpp',
+	'OptimizedX86Executor.cpp',
 	
 	# Enhanced dynamic loading components
 	# 'dynamic_loading/ProgramHeaderParser.cpp',

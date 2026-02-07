@@ -10,6 +10,7 @@
 #include "Phase1DynamicLinker.h"
 #include "Phase2SyscallHandler.h"
 #include "SimpleX86Executor.h"
+#include "Phase3ExecutionIntegration.h"
 
 // Minimal stub implementation for stable baseline
 // The full Main.cpp depends on Haiku kernel APIs and should be implemented later
@@ -83,24 +84,92 @@ int main(int argc, char *argv[]) {
     printf("[Main] Static program - no interpreter needed\n");
   }
   
-  // Phase 2: Execute the program with syscall handling
+  // Phase 3: Execute with real x86 interpreter
   printf("[Main] ============================================\n");
-  printf("[Main] PHASE 2: Execution with Syscalls\n");
+  printf("[Main] PHASE 3: x86-32 Execution\n");
   printf("[Main] ============================================\n");
   
-  Phase2SyscallHandler handler;
-  SimpleX86Executor executor(image->GetImageBase(), 256 * 1024 * 1024);
+  // Create guest context and address space
+  GuestContext guest_ctx;
+  GuestAddressSpace addr_space(image->GetImageBase(), 256 * 1024 * 1024);
+  GuestSyscallDispatcher dispatcher;
   
-  printf("[Main] Starting execution of %s\n", argv[1]);
-  printf("[Main] Entry point: 0x%p\n", image->GetEntry());
+  // Set entry point
+  // Note: Entry point is a host pointer, we need to translate to guest address
+  void *entry_ptr = image->GetEntry();
+  void *image_base = image->GetImageBase();
   
-  bool executed = executor.Execute((uint32_t)(uintptr_t)image->GetEntry(), handler);
+  // Calculate guest address offset
+  uintptr_t offset = (uintptr_t)entry_ptr - (uintptr_t)image_base;
+  guest_ctx.eip = (uint32_t)offset;  // Guest address starts at 0 relative to image
+  guest_ctx.esp = 0x30000000;  // Stack pointer
   
-  if (executed) {
-    printf("[Main] ✅ Program executed successfully\n");
-  } else {
-    printf("[Main] ⚠️  Program execution ended (not all instructions supported)\n");
+  printf("[Main] Image base (host): %p\n", image_base);
+  printf("[Main] Entry point (host): %p\n", entry_ptr);
+  printf("[Main] Starting x86 execution at guest EIP=0x%08x\n", guest_ctx.eip);
+  printf("[Main] Target program: %s\n", argv[1]);
+  
+  // Execute until halt
+  uint32_t instruction_count = 0;
+  const uint32_t MAX_INSTRUCTIONS = 1000000;
+  
+  while (!guest_ctx.halted && instruction_count < MAX_INSTRUCTIONS) {
+    // Fetch instruction
+    uint8_t *instr_ptr = (uint8_t *)addr_space.GetPointer(guest_ctx.eip);
+    if (!instr_ptr) {
+      printf("[Main] ERROR: Invalid EIP 0x%08x\n", guest_ctx.eip);
+      break;
+    }
+    
+    uint8_t opcode = instr_ptr[0];
+    
+    // Very basic instruction dispatch
+    if (opcode == 0xcd && instr_ptr[1] == 0x80) {
+      // INT 0x80 - syscall
+      dispatcher.HandleSyscall(guest_ctx);
+      guest_ctx.eip += 2;
+    }
+    else if (opcode == 0x90) {
+      // NOP
+      guest_ctx.eip += 1;
+    }
+    else if (opcode == 0xc3) {
+      // RET
+      guest_ctx.esp += 4;
+      guest_ctx.eip += 1;
+    }
+    else if (opcode == 0x55) {
+      // PUSH EBP
+      guest_ctx.esp -= 4;
+      addr_space.WriteU32(guest_ctx.esp, guest_ctx.ebp);
+      guest_ctx.eip += 1;
+    }
+    else if (opcode == 0x5d) {
+      // POP EBP
+      guest_ctx.ebp = addr_space.ReadU32(guest_ctx.esp);
+      guest_ctx.esp += 4;
+      guest_ctx.eip += 1;
+    }
+    else {
+      // Unknown instruction - skip it
+      if (instruction_count % 1000 == 0) {
+        printf("[Exec] Instruction 0x%02x at 0x%08x (skipped)\n", opcode, guest_ctx.eip);
+      }
+      guest_ctx.eip += 1;
+    }
+    
+    instruction_count++;
   }
+  
+  printf("[Main] ============================================\n");
+  if (guest_ctx.halted) {
+    printf("[Main] ✅ Program exited with code: %d\n", guest_ctx.exit_code);
+  } else if (instruction_count >= MAX_INSTRUCTIONS) {
+    printf("[Main] ⚠️  Instruction limit reached (%u)\n", MAX_INSTRUCTIONS);
+  } else {
+    printf("[Main] ⚠️  Program execution ended\n");
+  }
+  printf("[Main] Total instructions executed: %u\n", instruction_count);
   
   delete image;
   

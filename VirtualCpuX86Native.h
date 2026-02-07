@@ -1,8 +1,21 @@
 #pragma once
 
+#include "PlatformTypes.h"
 #include "VirtualCpuX86.h"
 #include <setjmp.h>
 #include <AutoDeleterOS.h>
+
+// AreaDeleter for Haiku memory areas
+class AreaDeleter {
+public:
+	AreaDeleter() : fArea(-1) {}
+	~AreaDeleter() { if (fArea >= 0) delete_area(fArea); }
+	void SetTo(area_id a) { fArea = a; }
+	area_id Get() const { return fArea; }
+	bool IsSet() const { return fArea >= 0; }
+private:
+	area_id fArea;
+};
 
 
 class VirtualCpuX86Native: public VirtualCpuX86 {
