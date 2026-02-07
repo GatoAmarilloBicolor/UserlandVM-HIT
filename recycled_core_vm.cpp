@@ -20,7 +20,7 @@ private:
 public:
     RecycledCoreVM() 
         : memory(), elf_loader(memory), program_info(), executor(memory, elf_loader, program_info, "CORE") {
-        printf("[CORE_VM] Recycled Core VM initialized using CommonVMComponents\n");
+        printf("[linux.cosmoe] [CORE_VM] Recycled Core VM initialized using CommonVMComponents\n");
     }
     
     bool ExecuteProgram(const char* filename) {

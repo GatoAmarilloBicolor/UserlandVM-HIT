@@ -22,6 +22,13 @@
 #define PLATFORM_LIBS "Native Linux system calls"
 #endif
 
+// Platform output formatting
+#ifdef __HAIKU__
+#define PLATFORM_OUTPUT "[haiku.cosmoe]"
+#else
+#define PLATFORM_OUTPUT "[linux.cosmoe]"
+#endif
+
 // Common constants
 #define VM_OK 0
 #define VM_ERROR (-1)
@@ -82,7 +89,7 @@ struct CommonProgramInfo {
         printf("Start: %s", ctime(&start_time));
         printf("End: %s", ctime(&end_time));
         printf("Duration: %ld seconds\n", end_time - start_time);
-        printf("[%s_shell]: ", vm_type);
+        printf("%s [%s_shell]: ", PLATFORM_OUTPUT, vm_type);
     }
 };
 
@@ -137,7 +144,7 @@ public:
     virtual ~CommonELFLoader() = default;
     
     bool LoadELF(const char* filename, uint32_t& entry_point, bool& needs_interp) {
-        printf("[%s_VM] Loading ELF: %s\n", loader_name, filename);
+        printf("%s [%s_VM] Loading ELF: %s\n", PLATFORM_OUTPUT, loader_name, filename);
         
         std::ifstream file(filename, std::ios::binary);
         if (!file) {
@@ -150,12 +157,12 @@ public:
         
         // Validate ELF
         if (header.ident[0] != 0x7F || strncmp(reinterpret_cast<char*>(header.ident) + 1, "ELF", 3) != 0) {
-            printf("[%s_VM] Invalid ELF magic\n", loader_name);
+            printf("%s [%s_VM] Invalid ELF magic\n", PLATFORM_OUTPUT, loader_name);
             return false;
         }
         
         entry_point = header.entry;
-        printf("[%s_VM] Entry Point: 0x%x\n", loader_name, entry_point);
+        printf("%s [%s_VM] Entry Point: 0x%x\n", PLATFORM_OUTPUT, loader_name, entry_point);
         
         // Check for PT_INTERP
         needs_interp = false;
@@ -166,28 +173,28 @@ public:
             
             if (phdr.type == PT_INTERP) {
                 needs_interp = true;
-                printf("[%s_VM] PT_INTERP detected\n", loader_name);
+                printf("%s [%s_VM] PT_INTERP detected\n", PLATFORM_OUTPUT, loader_name);
                 break;
             }
         }
         
         // Load program segments
-        printf("[%s_VM] Loading %d program segments...\n", loader_name, header.phnum);
+        printf("%s [%s_VM] Loading %d program segments...\n", PLATFORM_OUTPUT, loader_name, header.phnum);
         file.seekg(0);
         for (int i = 0; i < header.phnum; i++) {
             CommonProgramHeader phdr;
             file.read(reinterpret_cast<char*>(&phdr), sizeof(phdr));
             
             if (phdr.type == PT_LOAD) {
-                printf("[%s_VM] Loading PT_LOAD: vaddr=0x%x, size=0x%x, filesz=0x%x\n", 
-                       loader_name, phdr.vaddr, phdr.memsz, phdr.filesz);
+                printf("%s [%s_VM] Loading PT_LOAD: vaddr=0x%x, size=0x%x, filesz=0x%x\n", 
+                       PLATFORM_OUTPUT, loader_name, phdr.vaddr, phdr.memsz, phdr.filesz);
                 
                 std::vector<char> segment_data(phdr.filesz);
                 file.seekg(phdr.offset);
                 file.read(segment_data.data(), phdr.filesz);
                 
                 if (!memory.Write(phdr.vaddr, segment_data.data(), phdr.filesz)) {
-                    printf("[%s_VM] Error: Failed to write segment at 0x%x\n", loader_name, phdr.vaddr);
+                    printf("%s [%s_VM] Error: Failed to write segment at 0x%x\n", PLATFORM_OUTPUT, loader_name, phdr.vaddr);
                     return false;
                 }
                 
@@ -199,7 +206,7 @@ public:
             }
         }
         
-        printf("[%s_VM] ELF loading complete\n", loader_name);
+        printf("%s [%s_VM] ELF loading complete\n", PLATFORM_OUTPUT, loader_name);
         return true;
     }
 };
@@ -220,25 +227,25 @@ public:
     virtual bool ExecuteProgram(const char* filename) {
         strncpy(program_info.program_name, filename, sizeof(program_info.program_name) - 1);
         
-        printf("[%s_VM] Starting program execution\n", vm_name);
+        printf("%s [%s_VM] Starting program execution\n", PLATFORM_OUTPUT, vm_name);
         
         if (!elf_loader.LoadELF(filename, program_info.entry_point, program_info.has_pt_interp)) {
-            printf("[%s_VM] ELF loading failed\n", vm_name);
+            printf("%s [%s_VM] ELF loading failed\n", PLATFORM_OUTPUT, vm_name);
             return VM_ERROR;
         }
         
-        printf("[%s_VM] Starting execution at 0x%x\n", vm_name, program_info.entry_point);
+        printf("%s [%s_VM] Starting execution at 0x%x\n", PLATFORM_OUTPUT, vm_name, program_info.entry_point);
         
         // Common execution simulation
-        printf("[%s_VM] Program running on %s\n", vm_name, PLATFORM_NAME);
-        printf("[%s_VM] Platform: %s\n", vm_name, PLATFORM_NAME);
-        printf("[%s_VM] Architecture: x86-64\n", vm_name);
-        printf("[%s_VM] Memory: %zu MB\n", vm_name, memory.GetSize() / (1024 * 1024));
+        printf("%s [%s_VM] Program running on %s\n", PLATFORM_OUTPUT, vm_name, PLATFORM_NAME);
+        printf("%s [%s_VM] Platform: %s\n", PLATFORM_OUTPUT, vm_name, PLATFORM_NAME);
+        printf("%s [%s_VM] Architecture: x86-64\n", PLATFORM_OUTPUT, vm_name);
+        printf("%s [%s_VM] Memory: %zu MB\n", PLATFORM_OUTPUT, vm_name, memory.GetSize() / (1024 * 1024));
         
         program_info.end_time = time(nullptr);
         program_info.PrintExecutionSummary(vm_name);
         
-        printf("[%s_VM] %s execution completed\n", vm_name, vm_name);
+        printf("%s [%s_VM] %s execution completed\n", PLATFORM_OUTPUT, vm_name, vm_name);
         
         return VM_OK;
     }

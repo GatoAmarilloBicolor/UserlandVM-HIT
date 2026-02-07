@@ -20,7 +20,7 @@ private:
 public:
     RecycledModularVM() 
         : memory(), elf_loader(memory), program_info(), executor(memory, elf_loader, program_info, "MODULAR") {
-        printf("[MODULAR_VM] Recycled Modular VM initialized using CommonVMComponents\n");
+        printf("[linux.cosmoe] [MODULAR_VM] Recycled Modular VM initialized using CommonVMComponents\n");
     }
     
     bool ExecuteProgram(const char* filename) {
