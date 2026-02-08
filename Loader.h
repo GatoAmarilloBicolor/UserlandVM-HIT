@@ -186,6 +186,7 @@ public:
 	uint32_t GetProgramHeaderFileSize(uint32_t index) override {return fPhdrs[index].p_filesz;}
 	uint32_t GetProgramHeaderAlign(uint32_t index) override {return fPhdrs[index].p_align;}
 	uint32_t GetProgramHeaderSize() override {return fHeader.e_phentsize;}
+	uint32_t GetImageSize() const {return (uint32_t)fSize;}  // Total loaded image size
 	bool ReadMemory(uint32_t addr, void* buffer, size_t size) override;
 	const char *GetInterpreter() override {return fInterpreter;}
 };

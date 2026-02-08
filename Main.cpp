@@ -119,7 +119,12 @@ int main(int argc, char *argv[]) {
   }
   
   // Copy image into guest memory at offset 0
-  memcpy(guest_memory, image->GetImageBase(), image->GetProgramHeaderSize());
+  // Get the total size of loaded image (includes all PT_LOAD segments)
+  uint32_t image_size = dynamic_cast<ElfImageImpl<Elf32Class>*>(image) ? 
+                        dynamic_cast<ElfImageImpl<Elf32Class>*>(image)->GetImageSize() :
+                        4096;  // fallback
+  printf("[Main] Copying image: base=%p, size=%u bytes\n", image->GetImageBase(), image_size);
+  memcpy(guest_memory, image->GetImageBase(), image_size);
   
   RealAddressSpace address_space((uint8_t *)guest_memory, 256 * 1024 * 1024);
   RealSyscallDispatcher syscall_dispatcher;
