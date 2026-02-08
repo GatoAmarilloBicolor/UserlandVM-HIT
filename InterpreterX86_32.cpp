@@ -165,25 +165,7 @@ status_t InterpreterX86_32::Run(GuestContext &context) {
     X86_32Registers &regs = x86_context.Registers();
     uint32 eip_before = regs.eip;
     
-    // Show first few instructions for debugging
-    if (instr_count < 10) {
-        printf("[INTERPRETER::Loop] Instruction %u: EIP=0x%08x\n", instr_count, eip_before);
-        fflush(stdout);
-    }
-    
     status_t status = ExecuteInstruction(context, bytes_consumed);
-    
-    if (instr_count < 10) {
-        printf("[INTERPRETER::Loop] After instr %u: status=%d, bytes=%u, EIP=0x%08x\n", 
-               instr_count, status, bytes_consumed, regs.eip);
-        fflush(stdout);
-    }
-
-    // DEBUG: Print EIP changes
-    if (instr_count > 0 && instr_count % 5 == 0) {
-      printf("[EXEC TRACE] instr=%u EIP: 0x%08x → 0x%08x (delta=%d)\n",
-             instr_count, eip_before, regs.eip, (int)(regs.eip - eip_before));
-    }
 
     if (status != B_OK) {
       // Check for guest exit signal (0x80000001)
@@ -194,9 +176,8 @@ status_t InterpreterX86_32::Run(GuestContext &context) {
       // Print opcode at failure point
       uint8 opcode_at_fail = 0;
       fAddressSpace.Read(regs.eip, &opcode_at_fail, 1);
-      printf("[INTERPRETER] Instruction execution failed at EIP=0x%08x "
-             "opcode=0x%02x: status=%d (0x%08x)\n",
-             regs.eip, opcode_at_fail, status, (uint32_t)status);
+      printf("[INTERPRETER] ERROR: Failed at EIP=0x%08x opcode=0x%02x status=%d\n",
+             regs.eip, opcode_at_fail, status);
       return status;
     }
 
@@ -205,7 +186,7 @@ status_t InterpreterX86_32::Run(GuestContext &context) {
     if (bytes_consumed == 0) {
       // Check if EIP was modified (control flow instruction)
       if (regs.eip == eip_before) {
-        printf("[INTERPRETER] Invalid instruction at 0x%08x\n", regs.eip);
+        printf("[INTERPRETER] ERROR: Invalid instruction at 0x%08x\n", regs.eip);
         return B_BAD_DATA;
       }
       // EIP was modified by instruction (CALL/JMP), don't increment
@@ -232,9 +213,9 @@ status_t InterpreterX86_32::Run(GuestContext &context) {
     }
     instr_count++;
 
-    // Safety check and progress reporting
-    if (instr_count % 100 == 0) {
-      printf("[INTERPRETER] Executed %u instructions, EIP=0x%08x\n", instr_count, regs.eip);
+    // Progress reporting (every 10K instructions)
+    if (instr_count % 10000 == 0) {
+      printf("[INTERPRETER] %u instructions executed\n", instr_count);
       fflush(stdout);
     }
   }
@@ -2414,76 +2395,115 @@ status_t InterpreterX86_32::Execute_GROUP_81(GuestContext &context,
 }
 
 status_t InterpreterX86_32::Execute_GROUP_83(GuestContext &context,
-                                             const uint8 *instr, uint32 &len) {
-  X86_32GuestContext &x86_context = static_cast<X86_32GuestContext &>(context);
-  X86_32Registers &regs = x86_context.Registers();
+                                              const uint8 *instr, uint32 &len) {
+   X86_32GuestContext &x86_context = static_cast<X86_32GuestContext &>(context);
+   X86_32Registers &regs = x86_context.Registers();
 
-  uint8 modrm = instr[1];
-  uint8 mod = (modrm >> 6) & 3;       // bits 7-6
-  uint8 reg_field = (modrm >> 3) & 7; // bits 5-3 (extended opcode)
-  uint8 rm_field = modrm & 7;         // bits 2-0
+   uint8 modrm = instr[1];
+   uint8 mod = (modrm >> 6) & 3;       // bits 7-6
+   uint8 reg_field = (modrm >> 3) & 7; // bits 5-3 (extended opcode)
+   uint8 rm_field = modrm & 7;         // bits 2-0
 
-  uint32 *reg_ptrs[] = {&regs.eax, &regs.ecx, &regs.edx, &regs.ebx,
-                        &regs.esp, &regs.ebp, &regs.esi, &regs.edi};
+   uint32 *reg_ptrs[] = {&regs.eax, &regs.ecx, &regs.edx, &regs.ebx,
+                         &regs.esp, &regs.ebp, &regs.esi, &regs.edi};
 
-  DebugPrintf("       GROUP1 0x83 Debug: ModR/M=0x%02x, mod=%u, reg_field=%u, "
-              "rm_field=%u\n",
-              modrm, mod, reg_field, rm_field);
+   // Get the imm8 and effective address
+   int8 imm8 = 0;
+   uint32 operand_value = 0;
+   uint32 operand_addr = 0;
+   bool is_memory = false;
 
-  // Solo manejaremos el modo de registro a registro por ahora (Mod = 3)
-  if (mod != 3) {
-    DebugPrintf(
-        "       GROUP1 0x83: Memory addressing not supported yet (mod=%u)\n",
-        mod);
-    return B_BAD_DATA;
-  }
+   if (mod == 3) {
+     // Register mode
+     imm8 = (int8)instr[2];
+     operand_value = *reg_ptrs[rm_field];
+     len = 3;
+   } else if (mod == 1) {
+     // [base + disp8]
+     operand_addr = *reg_ptrs[rm_field] + (int8)instr[2];
+     imm8 = (int8)instr[3];
+     len = 4;
+     if (fAddressSpace.Read(operand_addr, &operand_value, 4) != B_OK) {
+       return B_BAD_VALUE;
+     }
+     is_memory = true;
+   } else if (mod == 2) {
+     // [base + disp32]
+     operand_addr = *reg_ptrs[rm_field] + *(int32 *)&instr[2];
+     imm8 = (int8)instr[6];
+     len = 7;
+     if (fAddressSpace.Read(operand_addr, &operand_value, 4) != B_OK) {
+       return B_BAD_VALUE;
+     }
+     is_memory = true;
+   } else if (mod == 0) {
+     // [base] or [disp32]
+     if (rm_field == 5) {
+       // [disp32]
+       operand_addr = *(uint32 *)&instr[2];
+       imm8 = (int8)instr[6];
+       len = 7;
+     } else {
+       // [base]
+       operand_addr = *reg_ptrs[rm_field];
+       imm8 = (int8)instr[2];
+       len = 3;
+     }
+     if (fAddressSpace.Read(operand_addr, &operand_value, 4) != B_OK) {
+       return B_BAD_VALUE;
+     }
+     is_memory = true;
+   }
 
-  // El operando inmediato de 8 bits siempre sigue al ModR/M byte
-  int8 imm8 = (int8)instr[2];
+   uint32 result = 0;
+   switch (reg_field) {
+   case 0: // ADD r/m32, imm8
+     result = operand_value + imm8;
+     break;
+   case 1: // OR r/m32, imm8
+     result = operand_value | (uint32)(int32)imm8;
+     break;
+   case 2: // ADC r/m32, imm8 (add with carry)
+     result = operand_value + imm8 + ((regs.eflags & 0x01) ? 1 : 0);
+     break;
+   case 3: // SBB r/m32, imm8 (subtract with borrow)
+     result = operand_value - imm8 - ((regs.eflags & 0x01) ? 1 : 0);
+     break;
+   case 4: // AND r/m32, imm8
+     result = operand_value & (uint32)(int32)imm8;
+     break;
+   case 5: // SUB r/m32, imm8
+     result = operand_value - imm8;
+     break;
+   case 6: // XOR r/m32, imm8
+     result = operand_value ^ (uint32)(int32)imm8;
+     break;
+   case 7: // CMP r/m32, imm8
+     result = operand_value - imm8;
+     // Set flags but don't update operand
+     regs.eflags = 0;
+     if (result == 0) regs.eflags |= 0x40; // ZF
+     if ((int32)result < 0) regs.eflags |= 0x80; // SF
+     return B_OK;
+   default:
+     return B_BAD_DATA;
+   }
 
-  uint32 *target_reg = reg_ptrs[rm_field]; // El operando destino es el r/m
-                                           // field en modo registro
+   // Update flags for non-CMP operations
+   regs.eflags = 0;
+   if (result == 0) regs.eflags |= 0x40; // ZF
+   if ((int32)result < 0) regs.eflags |= 0x80; // SF
 
-  len = 3; // Opcode + ModR/M + Imm8
+   // Store result
+   if (is_memory) {
+     if (fAddressSpace.Write(operand_addr, &result, 4) != B_OK) {
+       return B_BAD_VALUE;
+     }
+   } else {
+     *reg_ptrs[rm_field] = result;
+   }
 
-  DebugPrintf("       GROUP1 0x83: reg_field=%u (sub-opcode), rm_field=%u "
-              "(target reg), imm8=%d\n",
-              reg_field, rm_field, imm8);
-
-  switch (reg_field) {
-  case 0: // ADD r/m32, imm8
-    DebugPrintf("       ADD %s, %d\n", reg_names[rm_field], imm8);
-    *target_reg += imm8;
-    // TODO: Update flags
-    break;
-  case 4: // AND r/m32, imm8
-    DebugPrintf("       AND %s, 0x%02x\n", reg_names[rm_field], (uint8)imm8);
-    *target_reg &= (uint32)(int32)imm8; // Sign-extend imm8 to 32-bit
-    regs.eflags = 0;                    // Clear all flags
-    break;
-  case 5: // SUB r/m32, imm8
-    DebugPrintf("       SUB %s, %d\n", reg_names[rm_field], imm8);
-    *target_reg -= imm8;
-    // TODO: Update flags
-    break;
-  case 7: // CMP r/m32, imm8
-    DebugPrintf("       CMP %s, %d\n", reg_names[rm_field], imm8);
-    {
-      uint32 result = *target_reg - imm8;
-      regs.eflags = 0; // Clear flags for now
-      if (result == 0)
-        regs.eflags |= 0x40; // ZF
-      if ((int32)result < 0)
-        regs.eflags |= 0x80; // SF
-                             // TODO: OF, CF, AF, PF
-    }
-    break;
-  default:
-    DebugPrintf("       GROUP1 0x83: UNIMPLEMENTED sub-opcode %u\n", reg_field);
-    return B_BAD_DATA;
-  }
-
-  return B_OK;
+   return B_OK;
 }
 
 // Execute_GROUP_C1: Shift/Rotate instructions with 8-bit immediate
