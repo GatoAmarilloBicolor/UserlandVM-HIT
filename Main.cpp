@@ -21,6 +21,7 @@
 // The full Main.cpp depends on Haiku kernel APIs and should be implemented later
 
 #include <sys/mman.h>
+#include <cstring>
 
 // Implement vm32_create_area - use posix mmap
 static area_id next_area_id = 1;
@@ -102,8 +103,25 @@ int main(int argc, char *argv[]) {
   printf("[Main] PHASE 3: x86-32 Interpreter Execution\n");
   printf("[Main] ============================================\n");
   
-  // Create address space and dispatcher
-  RealAddressSpace address_space(image->GetImageBase(), 256 * 1024 * 1024);
+  // Create address space with proper memory allocation
+  // Guest memory model: 256 MB virtual space
+  // - 0x00000000-0x001FFFFF: Code/Data (from ELF image)
+  // - 0x0FFF0000-0x0FFFFFFF: Stack (top 64KB)
+  // - Rest: available for heap, etc.
+  
+  // Allocate real guest memory space (256 MB)
+  void *guest_memory = mmap(NULL, 256 * 1024 * 1024, 
+                             PROT_READ | PROT_WRITE | PROT_EXEC,
+                             MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (guest_memory == MAP_FAILED) {
+      printf("[Main] ERROR: Failed to allocate guest memory\n");
+      return 1;
+  }
+  
+  // Copy image into guest memory at offset 0
+  memcpy(guest_memory, image->GetImageBase(), image->GetProgramHeaderSize());
+  
+  RealAddressSpace address_space((uint8_t *)guest_memory, 256 * 1024 * 1024);
   RealSyscallDispatcher syscall_dispatcher;
   
   // Create x86-32 guest context

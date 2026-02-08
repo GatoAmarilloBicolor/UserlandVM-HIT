@@ -166,14 +166,14 @@ status_t InterpreterX86_32::Run(GuestContext &context) {
     uint32 eip_before = regs.eip;
     
     // Show first few instructions for debugging
-    if (instr_count < 20) {
+    if (instr_count < 10) {
         printf("[INTERPRETER::Loop] Instruction %u: EIP=0x%08x\n", instr_count, eip_before);
         fflush(stdout);
     }
     
     status_t status = ExecuteInstruction(context, bytes_consumed);
     
-    if (instr_count < 20) {
+    if (instr_count < 10) {
         printf("[INTERPRETER::Loop] After instr %u: status=%d, bytes=%u, EIP=0x%08x\n", 
                instr_count, status, bytes_consumed, regs.eip);
         fflush(stdout);

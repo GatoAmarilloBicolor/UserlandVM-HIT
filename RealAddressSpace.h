@@ -20,12 +20,15 @@ public:
     virtual ~RealAddressSpace() {}
     
     virtual status_t Read(uintptr_t guestAddress, void* buffer, size_t sz) override {
+        // guestAddress is an offset from base 0 in guest memory
+        // memory points to the host memory where guest memory is mapped
         if (guestAddress + sz > size) {
             printf("[RealAddressSpace] Read out of bounds: addr=0x%lx, size=%zu, limit=%zu\n", 
                    guestAddress, sz, size);
             return B_BAD_VALUE;
         }
         memcpy(buffer, memory + guestAddress, sz);
+        //printf("[RealAddressSpace] Read 0x%lx: %zu bytes\n", guestAddress, sz);
         return B_OK;
     }
     
