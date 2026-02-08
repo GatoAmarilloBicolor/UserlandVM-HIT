@@ -28,18 +28,7 @@
 area_id vm32_create_area(const char *name, void **address, uint32 addressSpec,
                          size_t size, uint32 lock, uint32 protection);
 
-// Fallback for 64-bit area creation if not available
-#ifndef create_area
-static inline area_id create_area(const char *name, void **address, uint32 addressSpec,
-                         size_t size, uint32 lock, uint32 protection) {
-  // Use posix mmap as fallback
-  void *ptr = mmap(nullptr, size, PROT_READ | PROT_WRITE | PROT_EXEC,
-                   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-  if (ptr == MAP_FAILED) return B_ERROR;
-  *address = ptr;
-  return 1; // fake area_id
-}
-#endif
+// Use create_area from PlatformTypes.h
 
 static bool FileRead(FILE *f, void *data, size_t size) {
   size_t read = fread(data, size, 1, f);

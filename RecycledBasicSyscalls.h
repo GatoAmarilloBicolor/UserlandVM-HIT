@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <sys/stat.h>
 
 // Recycled basic syscall implementations
 namespace RecycledBasicSyscalls {
@@ -232,14 +233,11 @@ public:
 };
 
 // Apply recycled basic syscalls globally
-void ApplyRecycledBasicSyscalls() {
+inline void ApplyRecycledBasicSyscalls() {
     printf("[GLOBAL_RECYCLED] Applying recycled basic syscall implementations...\n");
     
     RecycledBasicSyscallDispatcher::Initialize();
     RecycledBasicSyscallDispatcher::PrintStatus();
-    
-    printf("[GLOBAL_RECYCLED] Recycled basic syscalls ready for real functionality!\n");
-    printf("[GLOBAL_RECYCLED] UserlandVM-HIT now has optimized syscall handling!\n");
 }
 
 #endif // RECYCLED_BASIC_SYSCALLS_H

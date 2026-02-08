@@ -248,7 +248,7 @@ typedef uint32_t cpu_subtype;
 #define DT_JMPREL                  23
 
 #define EM_386                     3
-#define EM_486                     3
+#define EM_486                     6
 #define EM_68K                     4
 #define EM_PPC                     20
 #define EM_ARM                     40

@@ -6,9 +6,10 @@
 #include <string.h>
 
 #include "Loader.h"
-#include "Syscalls.h"
-#include "Phase1DynamicLinker.h"
+#include "Loader.h"
+#include "PlatformTypes.h"
 #include "RealAddressSpace.h"
+#include "X86_32GuestContext.h"
 #include "RealSyscallDispatcher.h"
 #include "X86_32GuestContext.h"
 #include "InterpreterX86_32.h"
@@ -129,35 +130,63 @@ static void ApplySimpleRelocations(uint8_t *guest_memory, size_t guest_size, Elf
   }
 }
 
+// Global verbose flag
+bool g_verbose = false;
+
 int main(int argc, char *argv[]) {
-  printf("[Main] UserlandVM-HIT Stable Baseline\n");
-  printf("[Main] argc=%d, argv[0]=%s\n", argc, argc > 0 ? argv[0] : "NULL");
+  // Parse command line arguments
+  bool show_help = false;
+  const char *binary_path = nullptr;
   
-  // Initialize new functionality
-  printf("[Main] ============================================\n");
-  printf("[Main] Initializing Enhanced Functionality\n");
-  printf("[Main] ============================================\n");
-  ApplyRecycledBasicSyscalls();
-  DynamicSymbolResolution::AddCommonSymbols();
-  printf("[Main] ✅ Enhanced functionality initialized\n\n");
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "--verbose") == 0) {
+      g_verbose = true;
+    } else if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+      show_help = true;
+    } else if (argv[i][0] != '-' && binary_path == nullptr) {
+      binary_path = argv[i];
+    }
+  }
   
-  if (argc < 2) {
-    printf("[Main] Usage: %s <elf_binary>\n", argv[0]);
-    return 1;
+  if (show_help || binary_path == nullptr) {
+    printf("UserlandVM-HIT - Haiku x86-32 Emulator\n");
+    printf("Usage: %s [options] <elf_binary>\n", argv[0]);
+    printf("Options:\n");
+    printf("  --verbose    Show detailed debug output\n");
+    printf("  --help, -h  Show this help\n");
+    return show_help ? 0 : 1;
+  }
+  
+  if (g_verbose) {
+    printf("[Main] UserlandVM-HIT Stable Baseline (verbose mode)\n");
+    printf("[Main] argc=%d, binary=%s\n", argc, binary_path);
+    
+    // Initialize new functionality
+    printf("[Main] ============================================\n");
+    printf("[Main] Initializing Enhanced Functionality\n");
+    printf("[Main] ============================================\n");
+    ApplyRecycledBasicSyscalls();
+    DynamicSymbolResolution::AddCommonSymbols();
+    printf("[Main] ✅ Enhanced functionality initialized\n\n");
+  } else {
+    ApplyRecycledBasicSyscalls();
+    DynamicSymbolResolution::AddCommonSymbols();
   }
   
   // Test the ELF loader
-  printf("[Main] Loading ELF binary: %s\n", argv[1]);
-  ElfImage *image = ElfImage::Load(argv[1]);
+  if (g_verbose) printf("[Main] Loading ELF binary: %s\n", binary_path);
+  ElfImage *image = ElfImage::Load(binary_path);
   
   if (!image) {
-    printf("[Main] ERROR: Failed to load ELF image\n");
+    printf("ERROR: Failed to load ELF image\n");
     return 1;
   }
   
-  printf("[Main] ELF image loaded successfully\n");
-  printf("[Main] Architecture: %s\n", image->GetArchString());
-  printf("[Main] Entry point: %p\n", image->GetEntry());
+  if (g_verbose) {
+    printf("[Main] ELF image loaded successfully\n");
+    printf("[Main] Architecture: %s\n", image->GetArchString());
+    printf("[Main] Entry point: %p\n", image->GetEntry());
+  }
   printf("[Main] Image base: %p\n", image->GetImageBase());
   printf("[Main] Dynamic: %s\n", image->IsDynamic() ? "yes" : "no");
   
@@ -209,15 +238,20 @@ int main(int argc, char *argv[]) {
   uint32_t image_size = dynamic_cast<ElfImageImpl<Elf32Class>*>(image) ? 
                         dynamic_cast<ElfImageImpl<Elf32Class>*>(image)->GetImageSize() :
                         4096;  // fallback
-  printf("[Main] Copying image: base=%p, size=%u bytes\n", image->GetImageBase(), image_size);
+  if (g_verbose) {
+    printf("[Main] Copying image: base=%p, size=%u bytes\n", image->GetImageBase(), image_size);
+  }
   memcpy(guest_memory, image->GetImageBase(), image_size);
   
   // Apply ET_DYN relocations if needed
   if (image->IsDynamic()) {
-    printf("[Main] ============================================\n");
-    printf("[Main] APPLYING ET_DYN RELOCATIONS\n");
-    printf("[Main] ============================================\n");
+    if (g_verbose) {
+      printf("[Main] Applying ET_DYN relocations...\n");
+    }
     ApplySimpleRelocations((uint8_t *)guest_memory, 512 * 1024 * 1024, image);
+    if (g_verbose) {
+      printf("[Main] Relocations applied\n");
+    }
   }
   
   RealAddressSpace address_space((uint8_t *)guest_memory, 512 * 1024 * 1024);  // EXPANDED to 512MB for larger binaries
@@ -232,7 +266,9 @@ int main(int argc, char *argv[]) {
   void *entry_ptr = image->GetEntry();
   void *image_base = image->GetImageBase();
   
-  printf("[Main] DEBUG: entry_ptr (host) = %p, image_base = %p\n", entry_ptr, image_base);
+  if (g_verbose) {
+    printf("[Main] DEBUG: entry_ptr (host) = %p, image_base = %p\n", entry_ptr, image_base);
+  }
   
   // For guest execution, entry is offset from base 0
   uint32_t guest_entry = 0;
@@ -258,7 +294,9 @@ int main(int argc, char *argv[]) {
       guest_entry = 0x116;  // main() in hello_static
   }
   
-  printf("[Main] Final entry point for guest: 0x%08x\n", guest_entry);
+  if (g_verbose) {
+    printf("[Main] Guest entry point: 0x%08x\n", guest_entry);
+  }
   
   // Set up initial registers
   guest_context.Registers().eip = guest_entry;  // Guest address is offset from base
@@ -272,39 +310,36 @@ int main(int argc, char *argv[]) {
   guest_context.Registers().edi = 0;
   guest_context.Registers().eflags = 0x202;  // Default flags
   
-  printf("[Main] Entry point: 0x%08x\n", guest_context.Registers().eip);
-  printf("[Main] Stack pointer: 0x%08x\n", guest_context.Registers().esp);
-  printf("[Main] Starting x86-32 interpreter...\n");
-  
   try {
     // Create and run interpreter
     InterpreterX86_32 interpreter(address_space, syscall_dispatcher);
     status_t exec_result = interpreter.Run(guest_context);
     
-    printf("[Main] ============================================\n");
-    printf("[Main] ✅ Interpreter execution completed\n");
-    printf("[Main] Status: %d (B_OK=0)\n", exec_result);
-    
-    if (guest_context.ShouldExit()) {
-      printf("[Main] Program exited\n");
+  ApplyRecycledBasicSyscalls();
+  DynamicSymbolResolution::AddCommonSymbols();
+      
+      printf("[Main] ============================================\n");
+      printf("[Main] PHASE 4: GUI Summary\n");
+      printf("[Main] ============================================\n");
+      
+      // Show window information if any windows were created
+      if (syscall_dispatcher.GetGUIHandler()) {
+        syscall_dispatcher.GetGUIHandler()->PrintWindowInfo();
+      }
     } else {
-      printf("[Main] Program still running (limit reached)\n");
+      // Only show final status in non-verbose mode
+      if (exec_result == 0) {
+        printf("✅ Program completed successfully\n");
+      } else {
+        printf("❌ Program failed with status %d\n", exec_result);
+      }
     }
   }
   catch (const std::exception &e) {
-    printf("[Main] ❌ Exception during execution: %s\n", e.what());
+    printf("❌ Exception during execution: %s\n", e.what());
   }
   catch (...) {
-    printf("[Main] ❌ Unknown exception during execution\n");
-  }
-  
-  printf("[Main] ============================================\n");
-  printf("[Main] PHASE 4: GUI Summary\n");
-  printf("[Main] ============================================\n");
-  
-  // Show window information if any windows were created
-  if (syscall_dispatcher.GetGUIHandler()) {
-    syscall_dispatcher.GetGUIHandler()->PrintWindowInfo();
+    printf("❌ Unknown exception during execution\n");
   }
   
   delete image;
