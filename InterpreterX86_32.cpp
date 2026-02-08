@@ -1065,7 +1065,11 @@ status_t InterpreterX86_32::ExecuteInstruction(GuestContext &context,
     DebugPrintf("JMP SHORT $imm8\n");
     int8 displacement = (int8)instr_buffer[1 + prefix_offset];
     X86_32Registers &regs = x86_context.Registers();
-    regs.eip += displacement + 2; // EIP after instruction + displacement
+    // JMP rel8 is 2 bytes total (opcode + offset)
+    // offset is relative to next instruction after JMP
+    uint32 next_instr = regs.eip + 2;
+    regs.eip = next_instr + (int32)displacement;
+    printf("[JMP rel8] eip=0x%x, offset=%d, target=0x%x\n", regs.eip - 2 - (int32)displacement, displacement, regs.eip);
     bytes_consumed = 0;           // Set by CALL/JMP
     return B_OK;
   }
@@ -3123,10 +3127,13 @@ status_t InterpreterX86_32::Execute_JMP(GuestContext &context,
 
   if (opcode == 0xE9) {
     // JMP $imm32 (E9 xx xx xx xx) - relative
+    // Offset is relative to the instruction AFTER the JMP (5 bytes total)
     int32 offset = *(int32 *)&instr[1];
-    target_eip = regs.eip + 5 + offset;
+    uint32 eip_after_jump = regs.eip + 5;  // Next instruction after this 5-byte JMP
+    target_eip = eip_after_jump + offset;   // Add signed offset to next instruction
     len = 5;
 
+    printf("       JMP $imm32: eip=0x%08x, offset=%d, target=0x%08x\n", regs.eip, offset, target_eip);
     DebugPrintf("       JMP $imm32 to 0x%08x (offset=%d)\n", target_eip,
                 offset);
 
@@ -3392,19 +3399,16 @@ status_t InterpreterX86_32::Execute_CALL(GuestContext &context,
 
   if (opcode == 0xE8) {
     // CALL $imm32 (E8 xx xx xx xx)
-    // Immediate: 4 bytes, relative offset
+    // CALL rel32 is 5 bytes total (1 byte opcode + 4 bytes offset)
+    // Offset is relative to next instruction after CALL
     int32_t offset = *(int32_t *)&instr[1];
     len = 5;
 
-    // Target = current EIP + len + offset
-    target_eip = regs.eip + len + offset;
-    printf("       [CALL E8 DEBUG] EIP=0x%08x\n", regs.eip);
-    printf("       [CALL E8 DEBUG] offset_bytes: %02x %02x %02x %02x\n",
-           instr[1], instr[2], instr[3], instr[4]);
-    printf("       [CALL E8 DEBUG] offset as int32=0x%08x (%d)\n", offset,
-           offset);
-    printf("       [CALL E8 DEBUG] target = 0x%08x + %u + 0x%08x = 0x%08x\n",
-           regs.eip, len, offset, target_eip);
+    // Target = next instruction + signed offset
+    uint32_t next_instr = regs.eip + 5;
+    target_eip = next_instr + offset;
+    printf("       [CALL rel32] eip=0x%08x, offset=%d, next_instr=0x%08x, target=0x%08x\n",
+           regs.eip, offset, next_instr, target_eip);
     DebugPrintf("       CALL $imm32 (offset=0x%08x): jump to 0x%08x\n", offset,
                 target_eip);
 
