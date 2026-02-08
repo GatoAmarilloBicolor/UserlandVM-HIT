@@ -548,7 +548,8 @@ status_t InterpreterX86_32::ExecuteInstruction(GuestContext &context,
   case 0x55:
   case 0x56:
   case 0x57:
-    DebugPrintf("PUSH reg\n");
+    printf("[PUSH] opcode=0x%02x\n", instr_buffer[0]);
+    fflush(stdout);
     return Execute_PUSH(context, instr_buffer, bytes_consumed);
 
   // IMUL r32, r/m32, imm32 (69 /r id) - Signed multiply with immediate
