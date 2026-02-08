@@ -6,9 +6,12 @@
 #include <cstring>
 #include "SupportDefs.h"
 
+// Only define ELF structures if system headers haven't already defined them
+#ifndef _ELF_H
 // Simplified ELF structures for cross-platform compatibility
 #define EI_NIDENT 16
 
+#ifndef Elf32_Ehdr
 typedef struct {
     unsigned char e_ident[EI_NIDENT];
     uint16_t e_type;
@@ -25,7 +28,9 @@ typedef struct {
     uint16_t e_shnum;
     uint16_t e_shstrndx;
 } Elf32_Ehdr;
+#endif
 
+#ifndef Elf32_Phdr
 typedef struct {
     uint32_t p_type;
     uint32_t p_offset;
@@ -36,7 +41,9 @@ typedef struct {
     uint32_t p_flags;
     uint32_t p_align;
 } Elf32_Phdr;
+#endif
 
+#ifndef Elf32_Shdr
 typedef struct {
     uint32_t sh_name;
     uint32_t sh_type;
@@ -49,7 +56,9 @@ typedef struct {
     uint32_t sh_addralign;
     uint32_t sh_entsize;
 } Elf32_Shdr;
+#endif
 
+#ifndef Elf32_Sym
 typedef struct {
     uint32_t st_name;
     uint32_t st_value;
@@ -58,22 +67,31 @@ typedef struct {
     uint8_t st_other;
     uint16_t st_shndx;
 } Elf32_Sym;
+#endif
 
+#ifndef Elf32_Dyn
 typedef struct {
     uint32_t d_tag;
     uint32_t d_val;
 } Elf32_Dyn;
+#endif
 
+#ifndef Elf32_Rel
 typedef struct {
     uint32_t r_offset;
     uint32_t r_info;
 } Elf32_Rel;
+#endif
 
+#ifndef Elf32_Rela
 typedef struct {
     uint32_t r_offset;
     uint32_t r_info;
     int32_t r_addend;
 } Elf32_Rela;
+#endif
+
+#endif // _ELF_H
 
 // ELF constants
 #define ELFMAG "\177ELF"

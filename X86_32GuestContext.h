@@ -16,16 +16,16 @@
 // Estructura para representar los registros de la CPU x86-32 del invitado.
 // Se mantiene simple por ahora, se expandirá según sea necesario.
 struct X86_32Registers {
-	uint32 eip; // Instruction Pointer
-	uint32 esp; // Stack Pointer
-	uint32 ebp; // Base Pointer
-	uint32 eax; // Accumulator
-	uint32 ebx; // Base
-	uint32 ecx; // Counter
-	uint32 edx; // Data
-	uint32 esi; // Source Index
-	uint32 edi; // Destination Index
-	uint32 eflags; // Flags Register
+	uint32_t eip; // Instruction Pointer
+	uint32_t esp; // Stack Pointer
+	uint32_t ebp; // Base Pointer
+	uint32_t eax; // Accumulator
+	uint32_t ebx; // Base
+	uint32_t ecx; // Counter
+	uint32_t edx; // Data
+	uint32_t esi; // Source Index
+	uint32_t edi; // Destination Index
+	uint32_t eflags; // Flags Register
 	// Otros registros de segmento (cs, ds, ss, es, fs, gs) y de control (cr0, cr3, etc.)
 	// se añadirán cuando sea necesario para una emulación más completa.
 };
