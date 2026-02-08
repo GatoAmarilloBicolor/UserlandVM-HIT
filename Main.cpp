@@ -109,8 +109,8 @@ int main(int argc, char *argv[]) {
   // - 0x0FFF0000-0x0FFFFFFF: Stack (top 64KB)
   // - Rest: available for heap, etc.
   
-  // Allocate real guest memory space (256 MB)
-  void *guest_memory = mmap(NULL, 256 * 1024 * 1024, 
+  // Allocate real guest memory space (512 MB - expanded for larger binaries)
+  void *guest_memory = mmap(NULL, 512 * 1024 * 1024, 
                              PROT_READ | PROT_WRITE | PROT_EXEC,
                              MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (guest_memory == MAP_FAILED) {
@@ -126,7 +126,7 @@ int main(int argc, char *argv[]) {
   printf("[Main] Copying image: base=%p, size=%u bytes\n", image->GetImageBase(), image_size);
   memcpy(guest_memory, image->GetImageBase(), image_size);
   
-  RealAddressSpace address_space((uint8_t *)guest_memory, 256 * 1024 * 1024);
+  RealAddressSpace address_space((uint8_t *)guest_memory, 512 * 1024 * 1024);  // EXPANDED to 512MB for larger binaries
   RealSyscallDispatcher syscall_dispatcher;
   
   // Create x86-32 guest context
