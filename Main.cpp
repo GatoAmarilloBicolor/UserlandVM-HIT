@@ -43,6 +43,92 @@ area_id vm32_create_area(const char *name, void **address, uint32 addressSpec,
   return next_area_id++;
 }
 
+// Simple relocation applicator for ET_DYN binaries
+// Handles R_386_RELATIVE relocations which are the most common
+static void ApplySimpleRelocations(uint8_t *guest_memory, size_t guest_size, ElfImage *image) {
+  printf("[Relocation] Starting relocation application\n");
+  
+  // Get to the host ELF header
+  const Elf32_Ehdr *ehdr = (const Elf32_Ehdr *)image->GetImageBase();
+  if (!ehdr) {
+    printf("[Relocation] ERROR: Could not get ELF header\n");
+    return;
+  }
+  
+  printf("[Relocation] ELF header found: e_phnum=%d, e_phoff=%d\n", ehdr->e_phnum, ehdr->e_phoff);
+  
+  // Find .rel.dyn section by scanning program headers
+  int reloc_count = 0;
+  for (uint32 i = 0; i < ehdr->e_phnum; i++) {
+    const Elf32_Phdr *phdr = (const Elf32_Phdr *)((uint8_t *)ehdr + ehdr->e_phoff + i * ehdr->e_phentsize);
+    
+    printf("[Relocation] Program header %d: type=0x%x\n", i, phdr->p_type);
+    
+    if (phdr->p_type == PT_DYNAMIC) {
+      printf("[Relocation] Found PT_DYNAMIC at offset 0x%x\n", phdr->p_offset);
+      
+      // Found PT_DYNAMIC, scan for DT_REL entries
+      const Elf32_Dyn *dyn = (const Elf32_Dyn *)((uint8_t *)ehdr + phdr->p_offset);
+      
+      Elf32_Rel *rel_section = nullptr;
+      uint32_t rel_size = 0;
+      
+      // Find DT_REL and DT_RELSZ
+      for (int j = 0; j < 100; j++) {
+        if (dyn[j].d_tag == DT_NULL) break;
+        if (dyn[j].d_tag == DT_REL) {
+          // DT_REL is a virtual address in the host loaded image
+          // We need to convert to guest offset
+          uint32_t rel_vaddr = dyn[j].d_un.d_ptr;
+          rel_section = (Elf32_Rel *)(guest_memory + rel_vaddr);
+          printf("[Relocation] Found DT_REL: vaddr=0x%x, guest_ptr=%p\n", rel_vaddr, rel_section);
+        }
+        if (dyn[j].d_tag == DT_RELSZ) {
+          rel_size = dyn[j].d_un.d_val;
+          printf("[Relocation] Found DT_RELSZ = %u bytes (%d relocations)\n", rel_size, rel_size / sizeof(Elf32_Rel));
+        }
+      }
+      
+      if (rel_section && rel_size > 0) {
+        printf("[Relocation] Applying relocations: rel_section=%p, rel_size=%u\n", rel_section, rel_size);
+        
+        // Apply R_386_RELATIVE relocations
+        int rel_count = rel_size / sizeof(Elf32_Rel);
+        printf("[Relocation] Total relocations: %d\n", rel_count);
+        
+        for (int k = 0; k < rel_count; k++) {
+          uint32_t rel_offset = rel_section[k].r_offset;
+          uint32_t rel_info = rel_section[k].r_info;
+          uint32_t rel_type = ELF32_R_TYPE(rel_info);
+          
+          if (k < 5) {
+            printf("[Relocation] Reloc %d: offset=0x%x, type=%d\n", k, rel_offset, rel_type);
+          }
+          
+          // Only handle R_386_RELATIVE (type 8)
+          if (rel_type == 8) {  // R_386_RELATIVE
+            if (rel_offset < guest_size) {
+              // *P = B + A where B is base and A is stored at P
+              uint32_t *reloc_addr = (uint32_t *)(guest_memory + rel_offset);
+              uint32_t addend = *reloc_addr;
+              *reloc_addr = (uint32_t)(uintptr_t)guest_memory + addend;
+              reloc_count++;
+              
+              if (reloc_count < 5) {
+                printf("[Relocation] Applied: *0x%p = 0x%p + 0x%x = 0x%x\n", 
+                       reloc_addr, guest_memory, addend, *reloc_addr);
+              }
+            }
+          }
+        }
+        printf("[Relocation] Applied %d R_386_RELATIVE relocations\n", reloc_count);
+      } else {
+        printf("[Relocation] ERROR: No DT_REL found (rel_section=%p, rel_size=%u)\n", rel_section, rel_size);
+      }
+    }
+  }
+}
+
 int main(int argc, char *argv[]) {
   printf("[Main] UserlandVM-HIT Stable Baseline\n");
   printf("[Main] argc=%d, argv[0]=%s\n", argc, argc > 0 ? argv[0] : "NULL");
@@ -125,6 +211,14 @@ int main(int argc, char *argv[]) {
                         4096;  // fallback
   printf("[Main] Copying image: base=%p, size=%u bytes\n", image->GetImageBase(), image_size);
   memcpy(guest_memory, image->GetImageBase(), image_size);
+  
+  // Apply ET_DYN relocations if needed
+  if (image->IsDynamic()) {
+    printf("[Main] ============================================\n");
+    printf("[Main] APPLYING ET_DYN RELOCATIONS\n");
+    printf("[Main] ============================================\n");
+    ApplySimpleRelocations((uint8_t *)guest_memory, 512 * 1024 * 1024, image);
+  }
   
   RealAddressSpace address_space((uint8_t *)guest_memory, 512 * 1024 * 1024);  // EXPANDED to 512MB for larger binaries
   RealSyscallDispatcher syscall_dispatcher;
