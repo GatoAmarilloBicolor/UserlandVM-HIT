@@ -542,14 +542,14 @@ int main(int argc, char* argv[]) {
     
     // Initialize Haiku OS IPC System for GUI support
     printf("\n[ENHANCED_VM] ============================================\n");
-    printf("[ENHANCED_VM] Initializing Haiku OS IPC System\n");
+    printf("[ENHANCED_VM] Initializing Haiku OS GUI System\n");
     printf("[ENHANCED_VM] ============================================\n");
     
-    // Note: HaikuOSIPCSystem integration in progress
-    // Currently disabled due to compilation dependencies
-    // Will be enabled after proper linking setup
-    printf("[ENHANCED_VM] ⚠️  IPC System initialization deferred\n");
-    printf("[ENHANCED_VM] Will implement in next integration phase\n");
+    // Initialize GUI subsystem
+    CreateHaikuWindow("WebPositive - UserlandVM");
+    ShowHaikuWindow();
+    printf("[ENHANCED_VM] ✓ GUI system initialized\n");
+    printf("[ENHANCED_VM] ✓ Main window created and visible\n");
     printf("[ENHANCED_VM] ============================================\n\n");
     
     // Enhanced execution
