@@ -263,28 +263,38 @@ public:
     }
     
     void HandleInterrupt(uint8_t int_num) {
-        printf("\n");
-        printf("═══════════════════════════════════════════════════════════\n");
-        printf("[INTERRUPT] INT 0x%02x detected\n", int_num);
-        printf("═══════════════════════════════════════════════════════════\n");
+        // Only log important interrupts
+        bool is_important = (int_num == 0x99 || int_num == 0x80 || 
+                           int_num == 0x63 || int_num == 0x25);
+        
+        if (is_important) {
+            printf("\n");
+            printf("═══════════════════════════════════════════════════════════\n");
+            printf("[INTERRUPT] INT 0x%02x detected\n", int_num);
+            printf("═══════════════════════════════════════════════════════════\n");
+        }
         
         if (int_num == 0x99) { // Enhanced Haiku syscall interface
             HandleEnhancedHaikuSyscalls();
         } else if (int_num == 0x80 || int_num == 0x63 || int_num == 0x25) {
             // Haiku syscall conventions
-            printf("[INTERRUPT] Haiku syscall: EAX=%u\n", regs.eax);
+            printf("[SYSCALL] Haiku syscall: EAX=%u\n", regs.eax);
             
             // Check for GUI syscalls (10000+)
             if (regs.eax >= 10000 && regs.eax <= 20000) {
-                printf("[INTERRUPT] ✨ GUI SYSCALL: %u\n", regs.eax);
-                printf("[INTERRUPT] EBX=%u ECX=%u EDX=%u ESI=%u\n", 
+                printf("\n");
+                printf("╔═══════════════════════════════════════════════════════════╗\n");
+                printf("║              ✨ GUI SYSCALL INTERCEPTED ✨                ║\n");
+                printf("╠═══════════════════════════════════════════════════════════╣\n");
+                printf("║ Syscall: %u\n", regs.eax);
+                printf("║ Args: EBX=%u ECX=%u EDX=%u ESI=%u\n", 
                        regs.ebx, regs.ecx, regs.edx, regs.esi);
+                printf("╚═══════════════════════════════════════════════════════════╝\n");
             }
             
-            printf("═══════════════════════════════════════════════════════════\n");
-        } else {
-            printf("[INTERRUPT] Unsupported interrupt\n");
-            printf("═══════════════════════════════════════════════════════════\n");
+            if (is_important) {
+                printf("═══════════════════════════════════════════════════════════\n");
+            }
         }
     }
     
