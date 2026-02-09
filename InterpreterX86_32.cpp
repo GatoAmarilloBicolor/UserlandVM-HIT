@@ -3014,31 +3014,62 @@ status_t InterpreterX86_32::Execute_INT(GuestContext &context,
     // INT 0x80: Linux syscall convention (legacy/compat)
     // INT 0x25: Haiku syscall convention (legacy/some versions)
     // INT 0x63: PRIMARY Haiku x86-32 syscall convention
-    printf("[INT] Executing syscall (interrupt 0x%02x)\n", int_num);
+    
+    printf("\n");
+    printf("═══════════════════════════════════════════════════════════\n");
+    printf("[SYSCALL] Interrupt 0x%02x detected\n", int_num);
+    printf("[SYSCALL] EAX=%u (syscall number)\n", regs.eax);
+    printf("[SYSCALL] EBX=%u, ECX=%u, EDX=%u, ESI=%u, EDI=%u\n", 
+           regs.ebx, regs.ecx, regs.edx, regs.esi, regs.edi);
     
     // Check if this is a GUI syscall (10000+ range)
     if (regs.eax >= 10000 && regs.eax <= 20000) {
-      printf("[INT-0x63] INTERCEPTED GUI SYSCALL: EAX=%u (0x%04x)\n", regs.eax, regs.eax);
-      printf("[INT-0x63] Registers: EBX=%u ECX=%u EDX=%u ESI=%u\n", regs.ebx, regs.ecx, regs.edx, regs.esi);
+      printf("[SYSCALL] ✨ GUI SYSCALL DETECTED: %u\n", regs.eax);
+      printf("═══════════════════════════════════════════════════════════\n");
+      
+      // Map syscall number to name for debugging
+      const char *syscall_name = "UNKNOWN";
+      switch (regs.eax) {
+        case 10001: syscall_name = "CREATE_WINDOW"; break;
+        case 10002: syscall_name = "DESTROY_WINDOW"; break;
+        case 10003: syscall_name = "POST_MESSAGE"; break;
+        case 10004: syscall_name = "GET_MESSAGE"; break;
+        case 10005: syscall_name = "DRAW_LINE"; break;
+        case 10006: syscall_name = "DRAW_RECT"; break;
+        case 10007: syscall_name = "FILL_RECT"; break;
+        case 10008: syscall_name = "DRAW_STRING"; break;
+        case 10009: syscall_name = "SET_COLOR"; break;
+        case 10010: syscall_name = "FLUSH"; break;
+        default: break;
+      }
+      
+      printf("[SYSCALL-GUI] Name: %s\n", syscall_name);
+      printf("[SYSCALL-GUI] Arguments: EBX=%u, ECX=%u, EDX=%u, ESI=%u\n", 
+             regs.ebx, regs.ecx, regs.edx, regs.esi);
+      printf("═══════════════════════════════════════════════════════════\n");
       
       uint32_t args[4] = {regs.ebx, regs.ecx, regs.edx, regs.esi};
-      uint32_t result;
+      uint32_t result = 0;
       
       // Try GUI dispatcher first
       RealSyscallDispatcher *real_dispatcher = dynamic_cast<RealSyscallDispatcher*>(&fDispatcher);
       if (real_dispatcher && real_dispatcher->HandleGUISyscall(regs.eax, args, &result)) {
         regs.eax = result;
-        printf("[INT-0x63] ✅ GUI syscall SUCCESS, result=%u\n", result);
+        printf("[SYSCALL-GUI] ✅ SUCCESS - returned %u\n", result);
+        printf("═══════════════════════════════════════════════════════════\n\n");
         return B_OK;
       } else {
-        printf("[INT-0x63] ❌ GUI syscall FAILED - no handler\n");
-        regs.eax = -1;
-        return B_ERROR;
+        printf("[SYSCALL-GUI] ⚠️  NOT HANDLED - no GUI dispatcher\n");
+        printf("[SYSCALL-GUI] Falling back to basic syscall dispatcher\n");
+        printf("═══════════════════════════════════════════════════════════\n");
       }
+    } else {
+      printf("[SYSCALL] Regular syscall: %u\n", regs.eax);
+      printf("═══════════════════════════════════════════════════════════\n");
     }
     
     status_t syscall_status = fDispatcher.Dispatch(context);
-    printf("[INT] Syscall returned, EAX=%u\n", regs.eax);
+    printf("[SYSCALL] Syscall %u returned, EAX=%u\n", regs.eax, regs.eax);
     // Check for special exit code
     if (syscall_status == (status_t)0x80000001) {
       return (status_t)0x80000001; // Propagate exit signal
