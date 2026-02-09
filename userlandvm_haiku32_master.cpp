@@ -16,6 +16,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <limits.h>
+#include "HaikuOSIPCSystem.h"
 
 // Haiku OS Constants - Enhanced Master API
 #define B_OS_NAME_LENGTH 32
@@ -507,6 +508,18 @@ int main(int argc, char* argv[]) {
     printf("Starting enhanced Haiku program execution...\n");
     printf("[ENHANCED_VM] Starting enhanced Haiku program execution (dynamic=%s)\n", 
            needs_dynamic ? "YES" : "NO");
+    
+    // Initialize Haiku OS IPC System for GUI support
+    printf("\n[ENHANCED_VM] ============================================\n");
+    printf("[ENHANCED_VM] Initializing Haiku OS IPC System\n");
+    printf("[ENHANCED_VM] ============================================\n");
+    
+    // Note: HaikuOSIPCSystem integration in progress
+    // Currently disabled due to compilation dependencies
+    // Will be enabled after proper linking setup
+    printf("[ENHANCED_VM] ⚠️  IPC System initialization deferred\n");
+    printf("[ENHANCED_VM] Will implement in next integration phase\n");
+    printf("[ENHANCED_VM] ============================================\n\n");
     
     // Enhanced execution
     EnhancedGuestContext enhanced_regs;

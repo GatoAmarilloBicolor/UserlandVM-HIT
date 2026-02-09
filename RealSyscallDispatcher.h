@@ -6,6 +6,7 @@
 #include "Phase4GUISyscalls.h"
 #include "X86_32GuestContext.h"
 #include "RecycledBasicSyscalls.h"
+#include "HaikuOSIPCSystem.h"
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
@@ -15,9 +16,19 @@ class RealSyscallDispatcher : public SyscallDispatcher {
 public:
     RealSyscallDispatcher() 
         : exit_code(0), should_exit(false),
-          gui_handler(std::make_unique<Phase4GUISyscallHandler>()) {}
+          gui_handler(std::make_unique<Phase4GUISyscallHandler>()),
+          ipc_system(nullptr) {}
     
     virtual ~RealSyscallDispatcher() = default;
+    
+    // Set the IPC system reference for GUI communication
+    void SetIPCSystem(HaikuOSIPCSystem* sys) {
+        ipc_system = sys;
+        if (gui_handler && ipc_system) {
+            gui_handler->SetIPCSystem(ipc_system);
+            printf("[RealSyscallDispatcher] IPC system connected\n");
+        }
+    }
     
     virtual status_t Dispatch(GuestContext& context) override {
         // For x86-32, syscall number is in EAX
@@ -64,4 +75,5 @@ private:
     int exit_code;
     bool should_exit;
     std::unique_ptr<Phase4GUISyscallHandler> gui_handler;
+    HaikuOSIPCSystem* ipc_system;
 };

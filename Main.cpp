@@ -10,6 +10,7 @@
 #include "DirectAddressSpace.h"
 #include "X86_32GuestContext.h"
 #include "InterpreterX86_32.h"
+#include "HaikuOSIPCSystem.h"
 
 // Include new functionality from remote
 // #include "EnhancedDynamicSymbolResolution.h"  // No .cpp file available
@@ -360,6 +361,19 @@ int main(int argc, char *argv[]) {
     printf("[Main] ✅ Dynamic linker detected (implementation pending)\n");
   } else {
     printf("[Main] Static program - no interpreter needed\n");
+  }
+  
+  // Phase 4: Initialize Haiku OS IPC System for GUI rendering
+  printf("[Main] ============================================\n");
+  printf("[Main] PHASE 4: Haiku OS IPC System (GUI Support)\n");
+  printf("[Main] ============================================\n");
+  
+  HaikuOSIPCSystem ipc_system;
+  if (!ipc_system.Initialize()) {
+    printf("[Main] ⚠️  IPC System initialization failed\n");
+    printf("[Main] Continuing without GUI support\n");
+  } else {
+    printf("[Main] ✅ IPC System initialized successfully\n");
   }
   
   // Binary resolution test - just verify the binary was found and loaded

@@ -2,6 +2,9 @@
 
 #include "PlatformTypes.h"
 
+// Forward declaration
+class HaikuOSIPCSystem;
+
 // Only include REAL Haiku backend when compiling on Haiku
 #ifdef __HAIKU__
 #include "RealGUIBackend.h"
@@ -97,7 +100,8 @@ public:
     Phase4GUISyscallHandler() : next_window_id(1), next_bitmap_id(1), next_conn_id(1), 
                                 output_lines(0), hardware_accelerated(false), 
                                 display_width(1024), display_height(768), 
-                                current_color(0x00000000), network_initialized(false) {
+                                current_color(0x00000000), network_initialized(false),
+                                ipc_system(nullptr) {
         printf("[GUI] Initialized Full GUI Syscall Handler\n");
         printf("[GUI] Display: %dx%d, Hardware Accel: %s\n", 
                display_width, display_height, hardware_accelerated ? "ON" : "OFF");
@@ -108,6 +112,14 @@ public:
     ~Phase4GUISyscallHandler() {
         CleanupDisplay();
         CleanupNetwork();
+    }
+    
+    // Set the IPC system reference for message communication
+    void SetIPCSystem(HaikuOSIPCSystem* sys) {
+        ipc_system = sys;
+        if (ipc_system) {
+            printf("[GUI] IPC system connected\n");
+        }
     }
     
     bool HandleGUISyscall(int syscall_num, uint32_t *args, uint32_t *result) {
@@ -201,6 +213,9 @@ private:
     std::map<int32_t, Bitmap> bitmaps;
     std::map<int32_t, NetworkConnection> connections;
     std::vector<std::string> message_queue;
+    
+    // IPC system reference for Haiku communication
+    HaikuOSIPCSystem* ipc_system;
     
     // Display and rendering state
     int32_t next_window_id;

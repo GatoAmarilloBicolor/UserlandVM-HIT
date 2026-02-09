@@ -9,13 +9,17 @@
 #include <string.h>
 #include <pthread.h>
 
+// Portable type definitions
+typedef int32_t int32;
+typedef int64_t int64;
+typedef uint32_t uint32;
+typedef uint64_t uint64;
+
 // Cross-platform Haiku types
-#ifndef __HAIKU__
 typedef int32_t status_t;
 typedef int64_t bigtime_t;
 typedef struct { float left, top, right, bottom; } BRect;
 typedef struct { float x, y; } BPoint;
-#endif
 
 // Haiku OS Kits and IPC System
 // Complete implementation: BWindow -> libroot.so -> app_server -> syscalls -> ports -> semaphores
@@ -62,80 +66,12 @@ typedef int32_t thread_id;
 #define B_PORT_DEFAULT_CAPACITY 64
 
 #else
+// On Haiku, use native types
 typedef int32_t port_id;
 typedef int32_t sem_id;
 typedef int32_t area_id;
 typedef int32_t team_id;
 typedef int32_t thread_id;
-#define B_OK 0
-#define B_ERROR (-1)
-#define B_WOULD_BLOCK (-2147483645)
-#define B_TIMED_OUT (-2147483646)
-#define B_NAME_TOO_LONG (-2147459073)
-#define B_BAD_VALUE (-2147483647)
-#define B_NO_MEMORY (-2147483648)
-#define B_BAD_PORT (-2147479808)
-#define B_BAD_SEM_ID (-2147479807)
-#define B_DUPLICATE (-2147454947)
-#define B_FILE_ERROR (-2147454948)
-#define B_PERMISSION_DENIED (-2147483633)
-
-// Port flags
-#define B_PORT_READ_ONLY 1
-#define B_PORT_WRITE_ONLY 2
-
-// Semaphore types
-#define B_SEMAPHORE_ACQUIRE 0
-#define B_SEMAPHORE_RELEASE 1
-#define B_SEMAPHORE_DELETE 2
-#define B_DO_NOT_RESCHEDULE 0x400
-
-// Area flags
-#define B_READ_AREA 0x01
-#define B_WRITE_AREA 0x02
-#define B_EXECUTE_AREA 0x04
-#define B_STACK_AREA 0x08
-#define B_LOCKED_AREA 0x10
-
-// Port capacity
-#define B_PORT_MAX_CAPACITY 255
-#define B_PORT_DEFAULT_CAPACITY 64
-
-#endif
-#define B_OK 0
-#define B_ERROR (-1)
-#define B_WOULD_BLOCK (-2147483645)
-#define B_TIMED_OUT (-2147483646)
-#define B_NAME_TOO_LONG (-2147459073)
-#define B_BAD_VALUE (-2147483647)
-#define B_NO_MEMORY (-2147483648)
-#define B_BAD_PORT (-2147479808)
-#define B_BAD_SEM_ID (-2147479807)
-#define B_DUPLICATE (-2147454947)
-#define B_FILE_ERROR (-2147454948)
-#define B_PERMISSION_DENIED (-2147483633)
-
-// Port flags
-#define B_PORT_READ_ONLY 1
-#define B_PORT_WRITE_ONLY 2
-
-// Semaphore types
-#define B_SEMAPHORE_ACQUIRE 0
-#define B_SEMAPHORE_RELEASE 1
-#define B_SEMAPHORE_DELETE 2
-#define B_DO_NOT_RESCHEDULE 0x400
-
-// Area flags
-#define B_READ_AREA 0x01
-#define B_WRITE_AREA 0x02
-#define B_EXECUTE_AREA 0x04
-#define B_STACK_AREA 0x08
-#define B_LOCKED_AREA 0x10
-
-// Port capacity
-#define B_PORT_MAX_CAPACITY 255
-#define B_PORT_DEFAULT_CAPACITY 64
-
 #endif
 
 // Haiku Message structures (cross-platform)
