@@ -540,6 +540,19 @@ int main(int argc, char* argv[]) {
     printf("[ENHANCED_VM] Starting enhanced Haiku program execution (dynamic=%s)\n", 
            needs_dynamic ? "YES" : "NO");
     
+    // Initialize Dynamic Linker for library loading
+    if (needs_dynamic) {
+        printf("\n[ENHANCED_VM] ============================================\n");
+        printf("[ENHANCED_VM] Initializing Dynamic Linker\n");
+        printf("[ENHANCED_VM] ============================================\n");
+        extern void dynload_init();
+        extern void initialize_program_libraries();
+        dynload_init();
+        initialize_program_libraries();
+        printf("[ENHANCED_VM] ✓ Dynamic linker initialized\n");
+        printf("[ENHANCED_VM] ============================================\n\n");
+    }
+    
     // Initialize Haiku OS IPC System for GUI support
     printf("\n[ENHANCED_VM] ============================================\n");
     printf("[ENHANCED_VM] Initializing Haiku OS GUI System\n");
