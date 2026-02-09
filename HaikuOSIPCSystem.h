@@ -220,9 +220,9 @@ private:
     std::atomic<float> audio_volume;
     std::unique_ptr<std::thread> audio_thread;
     
-    // MediaKit audio components
-    BSoundPlayer *sound_player;
-    media_raw_audio_format audio_format;
+    // MediaKit audio components (Haiku only - commented for cross-platform)
+    // BSoundPlayer *sound_player;
+    // media_raw_audio_format audio_format;
     std::atomic<bool> sound_player_running;
     std::mutex audio_mutex;
     
@@ -320,23 +320,6 @@ private:
         AS_WINDOW_MINIMIZE = 0x574e4957, // 'WMIN'
         AS_WINDOW_SEND_BEHIND = 0x53453444, // 'WSBE'
         AS_SEND_FRONT = 0x53465344, // 'WSFR'
-        AS_QUIT_REQUESTED = 0x51554954, // 'QUIT'
-    };
-    
-    // Additional message constants for window management
-    enum {
-        AS_WINDOW_GET_INFO = 0x474E4E54, // 'WGET'
-        AS_WINDOW_SET_LOOK = 0x574c484d, // 'WSEL'
-        AS_WINDOW_SET_FEEL = 0x5748454c, // 'WSEL'
-        AS_WINDOW_ACTIVATE = 0x57414354, // 'WACT'
-        AS_WINDOW_HIDE = 0x57444154, // 'WDAV'
-        AS_WINDOW_SHOW = 0x57494854, // 'WSHO'
-        AS_WINDOW_MOVE_TO = 0x574d5554, // 'WMOV'
-        AS_WINDOW_RESIZE_TO = 0x57524953, // 'WRIS'
-        AS_WINDOW_MINIMIZE = 0x574e4957, // 'WMIN'
-        AS_WINDOW_SEND_BEHIND = 0x53453444, // 'WSBE'
-        AS_SEND_FRONT = 0x53465344, // 'WSFR'
-        AS_QUIT_REQUESTED = 0x51554954, // 'QUIT'
     };
     
     // App server to libroot.so communication
