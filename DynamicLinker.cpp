@@ -20,6 +20,13 @@ DynamicLinker::DynamicLinker() {
         "sysroot/haiku32/boot/system/lib"
     };
     printf("[DYNAMIC] DynamicLinker initialized with %zu search paths\n", fSearchPaths.size());
+    
+    // Initialize TLS
+    fTLSInfo.tls_base = nullptr;
+    fTLSInfo.tls_size = 0;
+    fTLSInfo.tls_data = nullptr;
+    fTLSInfo.initialized = false;
+    fMainProgram = nullptr;
 }
 
 DynamicLinker::~DynamicLinker() {
@@ -317,7 +324,236 @@ bool DynamicLinker::FindSymbolInELF(const char* name, void** address, size_t* si
     return FindSymbol(name, address, size);
 }
 
+// Linker syscall handling interface
+bool DynamicLinker::HandleLinkerSyscall(uint32_t syscall_num, uint32_t *args, uint32_t *result) {
+    printf("[DynamicLinker] Handling linker syscall %d\n", syscall_num);
+    
+    switch (syscall_num) {
+        // Library operations
+        case 30001: { // load_library
+            const char *path = (const char *)args[0];
+            ElfImage *image = LoadLibrary(path);
+            *result = image ? (uint32_t)(uintptr_t)image : 0;
+            return image != nullptr;
+        }
+        
+        case 30002: { // find_symbol
+            const char *name = (const char *)args[0];
+            void *address = nullptr;
+            size_t size = 0;
+            bool found = FindSymbol(name, &address, &size);
+            *result = found ? (uint32_t)(uintptr_t)address : 0;
+            return found;
+        }
+        
+        case 30003: { // get_library
+            const char *name = (const char *)args[0];
+            ElfImage *image = GetLibrary(name);
+            *result = image ? (uint32_t)(uintptr_t)image : 0;
+            return image != nullptr;
+        }
+        
+        case 30004: { // set_search_path
+            const char *path = (const char *)args[0];
+            SetSearchPath(path);
+            *result = 0;
+            return true;
+        }
+        
+        case 30005: { // add_library
+            const char *name = (const char *)args[0];
+            ElfImage *image = (ElfImage *)(uintptr_t)args[1];
+            AddLibrary(name, image);
+            *result = 0;
+            return true;
+        }
+        
+        case 30006: { // load_dynamic_dependencies
+            const char *program_path = (const char *)args[0];
+            bool success = LoadDynamicDependencies(program_path);
+            *result = success ? 0 : -1;
+            return success;
+        }
+        
+        case 30007: { // get_dynamic_dependencies
+            const char *program_path = (const char *)args[0];
+            std::vector<std::string> deps = GetDynamicDependencies(program_path);
+            // For simplicity, return count of dependencies
+            *result = (uint32_t)deps.size();
+            return true;
+        }
+        
+        case 30008: { // load_critical_libraries
+            bool success = LoadCriticalLibraries();
+            *result = success ? 0 : -1;
+            return success;
+        }
+        
+        case 30009: { // resolve_library_path
+            const char *name = (const char *)args[0];
+            std::string path = ResolveLibraryPath(name);
+            // Return pointer to static string (not thread-safe but simple)
+            static char path_buffer[1024];
+            strncpy(path_buffer, path.c_str(), sizeof(path_buffer) - 1);
+            path_buffer[sizeof(path_buffer) - 1] = '\0';
+            *result = (uint32_t)(uintptr_t)path_buffer;
+            return !path.empty();
+        }
+        
+        case 30010: { // is_library_loaded
+            const char *name = (const char *)args[0];
+            bool loaded = IsLibraryLoaded(name);
+            *result = loaded ? 1 : 0;
+            return true;
+        }
+        
+        case 30011: { // get_loaded_libraries
+            std::vector<std::string> libs = GetLoadedLibraries();
+            // Return count of loaded libraries
+            *result = (uint32_t)libs.size();
+            return true;
+        }
+        
+        // Runtime loader operations
+        case 30012: { // get_symbol_address
+            const char *name = (const char *)args[0];
+            void *address = nullptr;
+            size_t size = 0;
+            bool found = FindSymbol(name, &address, &size);
+            *result = found ? (uint32_t)(uintptr_t)address : 0;
+            return found;
+        }
+        
+        case 30013: { // get_symbol_size
+            const char *name = (const char *)args[0];
+            void *address = nullptr;
+            size_t size = 0;
+            bool found = FindSymbol(name, &address, &size);
+            *result = found ? (uint32_t)size : 0;
+            return found;
+        }
+        
+        case 30014: { // resolve_symbol
+            const char *name = (const char *)args[0];
+            void *address = nullptr;
+            size_t size = 0;
+            bool found = FindSymbol(name, &address, &size);
+            *result = found ? (uint32_t)(uintptr_t)address : 0;
+            return found;
+        }
+        
+        default:
+            printf("[DynamicLinker] Unhandled linker syscall: %d\n", syscall_num);
+            *result = -1;
+            return false;
+    }
+}
+
 size_t DynamicLinker::GetSymbolSize(void* handle, const char* name) {
-    // For simplicity, return 0 for now
+    // This would require ELF parsing to get symbol size
+    // For now, return a default size
     return 0;
+}
+
+// Runtime loader integration
+bool DynamicLinker::HandlePT_INTERP(const char *interp_path) {
+    printf("[DYNAMIC] Handling PT_INTERP: %s\n", interp_path ? interp_path : "(null)");
+    
+    if (!interp_path) {
+        printf("[DYNAMIC] No PT_INTERP segment found\n");
+        return true; // No interpreter needed
+    }
+    
+    // Load the runtime loader (usually /system/runtime_loader)
+    ElfImage *runtime_loader = LoadLibrary(interp_path);
+    if (!runtime_loader) {
+        printf("[DYNAMIC] Failed to load runtime loader: %s\n", interp_path);
+        return false;
+    }
+    
+    printf("[DYNAMIC] ✅ Runtime loader loaded: %s\n", interp_path);
+    
+    // Initialize TLS if present
+    InitializeTLS();
+    
+    return true;
+}
+
+bool DynamicLinker::InitializeTLS() {
+    printf("[DYNAMIC] Initializing Thread Local Storage...\n");
+    
+    if (!fMainProgram) {
+        printf("[DYNAMIC] No main program set for TLS initialization\n");
+        return false;
+    }
+    
+    // Check if main program has TLS segment
+    // This would require parsing ELF program headers for PT_TLS
+    // For now, simulate TLS initialization
+    
+    fTLSInfo.tls_size = 1024; // Default TLS size
+    fTLSInfo.tls_data = new uint32_t[fTLSInfo.tls_size / 4];
+    memset(fTLSInfo.tls_data, 0, fTLSInfo.tls_size);
+    
+    // Allocate TLS base
+    fTLSInfo.tls_base = malloc(fTLSInfo.tls_size);
+    if (!fTLSInfo.tls_base) {
+        printf("[DYNAMIC] Failed to allocate TLS memory\n");
+        delete[] fTLSInfo.tls_data;
+        return false;
+    }
+    
+    // Copy initial TLS data
+    memcpy(fTLSInfo.tls_base, fTLSInfo.tls_data, fTLSInfo.tls_size);
+    
+    fTLSInfo.initialized = true;
+    printf("[DYNAMIC] ✅ TLS initialized: base=%p, size=%zu\n", 
+           fTLSInfo.tls_base, fTLSInfo.tls_size);
+    
+    return true;
+}
+
+void *DynamicLinker::GetTLSBase() {
+    if (!fTLSInfo.initialized) {
+        printf("[DYNAMIC] TLS not initialized\n");
+        return nullptr;
+    }
+    
+    return fTLSInfo.tls_base;
+}
+
+bool DynamicLinker::SetTLSValue(uint32_t index, void *value) {
+    if (!fTLSInfo.initialized || !fTLSInfo.tls_base) {
+        printf("[DYNAMIC] TLS not initialized\n");
+        return false;
+    }
+    
+    uint32_t *tls_array = (uint32_t *)fTLSInfo.tls_base;
+    if (index >= fTLSInfo.tls_size / 4) {
+        printf("[DYNAMIC] TLS index %u out of range\n", index);
+        return false;
+    }
+    
+    tls_array[index] = (uint32_t)(uintptr_t)value;
+    printf("[DYNAMIC] Set TLS[%u] = %p\n", index, value);
+    
+    return true;
+}
+
+void *DynamicLinker::GetTLSValue(uint32_t index) {
+    if (!fTLSInfo.initialized || !fTLSInfo.tls_base) {
+        printf("[DYNAMIC] TLS not initialized\n");
+        return nullptr;
+    }
+    
+    uint32_t *tls_array = (uint32_t *)fTLSInfo.tls_base;
+    if (index >= fTLSInfo.tls_size / 4) {
+        printf("[DYNAMIC] TLS index %u out of range\n", index);
+        return nullptr;
+    }
+    
+    void *value = (void *)(uintptr_t)tls_array[index];
+    printf("[DYNAMIC] Get TLS[%u] = %p\n", index, value);
+    
+    return value;
 }

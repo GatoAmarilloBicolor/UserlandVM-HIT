@@ -48,10 +48,31 @@ public:
 	std::string ResolveLibraryPath(const char *name);
 	bool IsLibraryLoaded(const char *name) const;
 	std::vector<std::string> GetLoadedLibraries() const;
+	
+	// Syscall handling interface
+	bool HandleLinkerSyscall(uint32_t syscall_num, uint32_t *args, uint32_t *result);
+	
+	// Runtime loader integration
+	bool HandlePT_INTERP(const char *interp_path);
+	bool InitializeTLS();
+	void *GetTLSBase();
+	bool SetTLSValue(uint32_t index, void *value);
+	void *GetTLSValue(uint32_t index);
 
 private:
 	std::map<std::string, LibraryInfo> fLibraries;
 	std::vector<std::string> fSearchPaths;
+	
+	// TLS support
+	struct TLSInfo {
+		void *tls_base;
+		size_t tls_size;
+		uint32_t *tls_data;
+		bool initialized;
+	};
+	
+	TLSInfo fTLSInfo;
+	ElfImage *fMainProgram;
 
 	// Helper methods
 	ElfImage *FindInLibraries(const char *name);

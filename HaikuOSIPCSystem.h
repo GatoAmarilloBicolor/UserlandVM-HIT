@@ -186,6 +186,9 @@ public:
     int32_t StartAppServer();
     int32_t StopAppServer();
     
+    // Syscall handling interface
+    bool HandleIPCSyscall(uint32_t syscall_num, uint32_t *args, uint32_t *result);
+    
 private:
     // Port management
     std::map<int32_t, std::string> port_names;
@@ -211,11 +214,17 @@ private:
     std::map<int32_t, app_server_connection> connections;
     std::mutex connection_mutex;
     
-    // Audio system
+    // Audio system with MediaKit
     std::atomic<bool> audio_initialized;
     void *audio_device;
     std::atomic<float> audio_volume;
     std::unique_ptr<std::thread> audio_thread;
+    
+    // MediaKit audio components
+    BSoundPlayer *sound_player;
+    media_raw_audio_format audio_format;
+    std::atomic<bool> sound_player_running;
+    std::mutex audio_mutex;
     
     // Host framebuffer
     host_framebuffer host_fb;
@@ -243,13 +252,42 @@ private:
     typedef int32_t (*be_window_create_func)(int32_t, const char*, BRect, uint32_t, uint32_t, uint32_t, int32_t*);
     typedef int32_t (*be_window_update_func)(int32_t, int32_t, BRect, void*);
     typedef int32_t (*be_window_mouse_func)(int32_t, int32_t, BPoint, int32_t, int32_t);
-    typedef int32_t (*be_window_keyboard_func)(int32_t, int32_t, int32_t, int32_t, bool);
+    typedef int32_t (*be_window_keyboard_func)(int32_t, int32_t, int32_t, int32_t, int32_t, bool);
     
+// Function pointers for libroot.so functions
     be_app_server_connect_func be_app_server_connect;
     be_window_create_func be_window_create;
     be_window_update_func be_window_update;
     be_window_mouse_func be_window_mouse;
     be_window_keyboard_func be_window_keyboard;
+    
+    // Additional Haiku app_server functions
+    typedef int32_t (*be_window_get_info_func)(int32_t, int32_t*, int32_t*, int32_t*, int32_t*);
+    typedef int32_t (*be_window_set_look_func)(int32_t, uint32_t);
+    typedef int32_t (*be_window_set_feel_func)(int32_t, uint32_t);
+    typedef int32_t (*be_window_activate_func)(int32_t, bool);
+    typedef int32_t (*be_window_hide_func)(int32_t, bool);
+    typedef int32_t (*be_window_show_func)(int32_t);
+    typedef int32_t (*be_window_move_to_func)(int32_t, int32_t, int32_t);
+    typedef int32_t (*be_window_resize_to_func)(int32_t, int32_t, int32_t);
+    typedef int32_t (*be_window_minimize_func)(int32_t, bool);
+    typedef int32_t (*be_window_send_behind_func)(int32_t, uint32_t);
+    typedef int32_t (*be_window_send_front_func)(int32_t, uint32_t);
+    typedef int32_t (*be_window_quit_requested_func)(int32_t, bool);
+    
+    // Function pointers for libroot.so functions
+    be_window_get_info_func be_window_get_info;
+    be_window_set_look_func be_window_set_look;
+    be_window_set_feel_func be_window_set_feel;
+    be_window_activate_func be_window_activate;
+    be_window_hide_func be_window_hide;
+    be_window_show_func be_window_show;
+    be_window_move_to_func be_window_move_to;
+    be_window_resize_to_func be_window_resize_to;
+    be_window_minimize_func be_window_minimize;
+    be_window_send_behind_func be_window_send_behind;
+    be_window_send_front_func be_window_send_front;
+    be_window_quit_requested_func be_window_quit_requested;
     
     // Message constants (from Haiku's app_server)
     enum {
@@ -257,7 +295,7 @@ private:
         AS_DELETE_WINDOW = 0x44454c57, // 'DELW'
         AS_UPDATE_WINDOW = 0x55504457, // 'UPDW'
         AS_MOUSE_MOVED = 0x4d6f7573, // 'Mous'
-        AS_MOUSE_DOWN = 0x4d444f57,  // 'MDOW'
+        AS_MOUSE_DOWN = 0x4d444f57, // 'MDOW'
         AS_MOUSE_UP = 0x4d555057,   // 'MUPW'
         AS_KEY_DOWN = 0x4b44574f,   // 'KDWO'
         AS_KEY_UP = 0x4b55574f,    // 'KUWO'
@@ -267,6 +305,38 @@ private:
         AS_QUIT_REQUESTED = 0x51554954, // 'QUIT'
         AS_WINDOW_MOVED = 0x574d4f56, // 'WMOV'
         AS_SCREEN_CHANGED = 0x53434847  // 'SCHG'
+    };
+    
+    // Additional message constants for window management
+    enum {
+        AS_WINDOW_GET_INFO = 0x474E4E54, // 'WGET'
+        AS_WINDOW_SET_LOOK = 0x574c484d, // 'WSEL'
+        AS_WINDOW_SET_FEEL = 0x5748454c, // 'WSEL'
+        AS_WINDOW_ACTIVATE = 0x57414354, // 'WACT'
+        AS_WINDOW_HIDE = 0x57444154, // 'WDAV'
+        AS_WINDOW_SHOW = 0x57494854, // 'WSHO'
+        AS_WINDOW_MOVE_TO = 0x574d5554, // 'WMOV'
+        AS_WINDOW_RESIZE_TO = 0x57524953, // 'WRIS'
+        AS_WINDOW_MINIMIZE = 0x574e4957, // 'WMIN'
+        AS_WINDOW_SEND_BEHIND = 0x53453444, // 'WSBE'
+        AS_SEND_FRONT = 0x53465344, // 'WSFR'
+        AS_QUIT_REQUESTED = 0x51554954, // 'QUIT'
+    };
+    
+    // Additional message constants for window management
+    enum {
+        AS_WINDOW_GET_INFO = 0x474E4E54, // 'WGET'
+        AS_WINDOW_SET_LOOK = 0x574c484d, // 'WSEL'
+        AS_WINDOW_SET_FEEL = 0x5748454c, // 'WSEL'
+        AS_WINDOW_ACTIVATE = 0x57414354, // 'WACT'
+        AS_WINDOW_HIDE = 0x57444154, // 'WDAV'
+        AS_WINDOW_SHOW = 0x57494854, // 'WSHO'
+        AS_WINDOW_MOVE_TO = 0x574d5554, // 'WMOV'
+        AS_WINDOW_RESIZE_TO = 0x57524953, // 'WRIS'
+        AS_WINDOW_MINIMIZE = 0x574e4957, // 'WMIN'
+        AS_WINDOW_SEND_BEHIND = 0x53453444, // 'WSBE'
+        AS_SEND_FRONT = 0x53465344, // 'WSFR'
+        AS_QUIT_REQUESTED = 0x51554954, // 'QUIT'
     };
     
     // App server to libroot.so communication
