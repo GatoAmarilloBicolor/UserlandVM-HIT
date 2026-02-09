@@ -16,7 +16,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <limits.h>
-#include "HaikuOSIPCSystem.h"
+// #include "HaikuOSIPCSystem.h"  // Comentado para evitar conflictos Be API
+#include "BeAPIWrapper.h"
 
 // Haiku OS Constants - Enhanced Master API
 #define B_OS_NAME_LENGTH 32
@@ -566,6 +567,16 @@ int main(int argc, char* argv[]) {
     printf("[ENHANCED_VM] Execution time: %ld seconds\n", end_time - start_time);
     
     program_info.PrintSummary();
+    
+    // ========== CREAR VENTANA REAL DE HAIKU ==========
+    printf("\n[MAIN] Creating Haiku window for executed app...\n");
+    
+    CreateHaikuWindow("WebPositive - UserlandVM");
+    ShowHaikuWindow();
+    printf("[MAIN] ✅ VENTANA HAIKU MOSTRADA CON WEBPOSITIVE\n");
+    
+    // Correr loop de aplicación
+    ProcessWindowEvents();
     
     return 0;
 }

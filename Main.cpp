@@ -10,11 +10,10 @@
 #include "DirectAddressSpace.h"
 #include "X86_32GuestContext.h"
 #include "InterpreterX86_32.h"
-#include "HaikuOSIPCSystem.h"
 
-// Include new functionality from remote
-// #include "EnhancedDynamicSymbolResolution.h"  // No .cpp file available
-// #include "RecycledBasicSyscalls.h"  // No .cpp file available
+// Be API Interceptor - CREA VENTANAS REALES
+#include "BeAPIInterceptor.h"
+#include "config.h"
 
 // Minimal stub implementation for stable baseline
 // The full Main.cpp depends on Haiku kernel APIs and should be implemented later
@@ -363,17 +362,21 @@ int main(int argc, char *argv[]) {
     printf("[Main] Static program - no interpreter needed\n");
   }
   
-  // Phase 4: Initialize Haiku OS IPC System for GUI rendering
+  // Phase 4: Initialize Be API Interceptor for REAL windows
   printf("[Main] ============================================\n");
-  printf("[Main] PHASE 4: Haiku OS IPC System (GUI Support)\n");
+  printf("[Main] PHASE 4: Be API Interceptor (VENTANAS REALES)\n");
   printf("[Main] ============================================\n");
   
-  HaikuOSIPCSystem ipc_system;
-  if (!ipc_system.Initialize()) {
-    printf("[Main] ⚠️  IPC System initialization failed\n");
+  // Initialize Be API Interceptor - esto CREA ventanas reales
+  BeAPIInterceptor& be_api = BeAPIInterceptor::GetInstance();
+  bool be_api_initialized = false;
+  
+  if (!be_api.Initialize()) {
+    printf("[Main] ⚠️  Be API Interceptor initialization failed\n");
     printf("[Main] Continuing without GUI support\n");
   } else {
-    printf("[Main] ✅ IPC System initialized successfully\n");
+    printf("[Main] ✅ Be API Interceptor initialized\n");
+    be_api_initialized = true;
   }
   
   // Binary resolution test - just verify the binary was found and loaded
