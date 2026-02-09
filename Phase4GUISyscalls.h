@@ -1,6 +1,7 @@
 #pragma once
 
 #include "PlatformTypes.h"
+#include "RealGUIBackend.h"
 #include <cstdint>
 #include <cstdio>
 #include <map>
@@ -211,6 +212,10 @@ private:
     
     // Thread safety
     std::mutex gui_mutex;
+    
+    // REAL Haiku GUI backend
+    std::unique_ptr<RealGUIBackend> real_backend;
+    bool use_real_backend;
     
     // Display initialization and management
     void InitializeDisplay() {
