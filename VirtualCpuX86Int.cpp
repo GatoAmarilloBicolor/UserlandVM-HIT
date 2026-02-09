@@ -1,6 +1,6 @@
 #include "PlatformTypes.h"
 #include "VirtualCpuX86Int.h"
-#include "HaikuOSKitsSystem.h"
+#include "SmartHaikuEmulation.h"
 #include "DynamicLinker.h"
 #include <stdio.h>
 #include <string.h>
@@ -13,7 +13,7 @@ VirtualCpuX86Int::VirtualCpuX86Int(ElfImage* image)
 	fEflags(0),
 	fImage(image),
 	fGuestMemBase((uint8*)image->GetImageBase()),
-	fHaikuKits(nullptr),
+	fSmartEmulation(nullptr),
 	fDynamicLinker(nullptr),
 	fIDTInitialized(false)
 {
@@ -95,14 +95,21 @@ void VirtualCpuX86Int::Run()
 
 void VirtualCpuX86Int::InitializeSubsystems()
 {
-	printf("[INT] Initializing unified Haiku OS kits system...\n");
+	printf("[INT] Initializing Smart Haiku OS emulation system...\n");
 	
-	// Initialize unified Haiku OS kits system
-	fHaikuKits = &HaikuOSKitsSystem::Instance();
-	if (fHaikuKits->Initialize() == B_OK) {
-		printf("[INT] ✅ Unified Haiku OS kits system initialized\n");
+	// Initialize smart Haiku emulation system
+	fSmartEmulation = &HaikuEmulation::SmartHaikuEmulation::Instance();
+	if (fSmartEmulation->Initialize()) {
+		printf("[INT] ✅ Smart Haiku emulation system initialized\n");
 	} else {
-		printf("[INT] ❌ Haiku OS kits system initialization failed\n");
+		printf("[INT] ❌ Smart Haiku emulation system initialization failed\n");
+	}
+	
+	// Auto-configure based on system capabilities
+	if (fSmartEmulation->AutoConfigure()) {
+		printf("[INT] ✅ Auto-configuration completed\n");
+	} else {
+		printf("[INT] ⚠️ Auto-configuration used defaults\n");
 	}
 	
 	// Initialize dynamic linker for library loading
@@ -117,16 +124,16 @@ void VirtualCpuX86Int::InitializeSubsystems()
 		printf("[INT] ❌ Dynamic linker initialization failed\n");
 	}
 	
-	printf("[INT] ✅ All subsystems initialized (optimized, no redundancies)\n");
+	printf("[INT] ✅ All subsystems initialized (modular, reusable, intelligent)\n");
 }
 
 void VirtualCpuX86Int::HandleInt63Haiku()
 {
-	printf("[INT] Handling INT 0x63 Haiku OS syscall (unified system)\n");
+	printf("[INT] Handling INT 0x63 Smart Haiku OS syscall (modular system)\n");
 	
 	// Get syscall number from EAX
 	uint32_t syscall_num = fRegs[0]; // EAX
-	printf("[INT] Haiku syscall number: %d\n", syscall_num);
+	printf("[INT] Smart Haiku syscall number: %d\n", syscall_num);
 	
 	// Get arguments from stack (EBX, ECX, EDX, ESI, EDI)
 	uint32_t args[5];
@@ -139,14 +146,10 @@ void VirtualCpuX86Int::HandleInt63Haiku()
 	uint32_t result = 0;
 	bool handled = false;
 	
-	// Route to unified Haiku OS kits system
-	if (fHaikuKits) {
-		// Extract kit ID from syscall number (high byte)
-		uint32_t kit_id = (syscall_num >> 24) & 0xFF;
-		uint32_t kit_syscall = syscall_num & 0x00FFFFFF;
-		
-		printf("[INT] Routing to Kit %d, syscall %d\n", kit_id, kit_syscall);
-		handled = fHaikuKits->HandleHaikuSyscall(kit_id, kit_syscall, args, &result);
+	// Route to smart Haiku emulation system
+	if (fSmartEmulation) {
+		printf("[INT] Routing to Smart Haiku emulation system\n");
+		handled = fSmartEmulation->HandleHaikuSyscall(syscall_num, args, &result);
 	}
 	
 	// Handle dynamic linker syscalls
@@ -158,10 +161,10 @@ void VirtualCpuX86Int::HandleInt63Haiku()
 	fRegs[0] = result;
 	
 	if (handled) {
-		printf("[INT] ✅ Haiku syscall %d handled successfully, result = 0x%x\n", 
+		printf("[INT] ✅ Smart Haiku syscall %d handled successfully, result = 0x%x\n", 
 			   syscall_num, result);
 	} else {
-		printf("[INT] ❌ Haiku syscall %d not handled\n", syscall_num);
+		printf("[INT] ❌ Smart Haiku syscall %d not handled\n", syscall_num);
 		fRegs[0] = (uint32_t)-1; // Error return
 	}
 }

@@ -5,7 +5,7 @@
 #include "Loader.h"
 
 // Forward declarations  
-class HaikuOSKitsSystem;
+class SmartHaikuEmulation;
 class DynamicLinker;
 
 class VirtualCpuX86Int {
@@ -29,7 +29,7 @@ private:
 	uint8* fGuestMemBase;
 
 	// Haiku OS subsystems
-	HaikuOSKitsSystem* fHaikuKits;
+	SmartHaikuEmulation* fSmartEmulation;
 	DynamicLinker* fDynamicLinker;
 
 	// INT 0x63 Haiku OS syscall handling
