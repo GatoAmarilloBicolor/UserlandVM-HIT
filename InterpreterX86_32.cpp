@@ -3018,6 +3018,9 @@ status_t InterpreterX86_32::Execute_INT(GuestContext &context,
     
     // Check if this is a GUI syscall (10000+ range)
     if (regs.eax >= 10000 && regs.eax <= 20000) {
+      printf("[INT-0x63] INTERCEPTED GUI SYSCALL: EAX=%u (0x%04x)\n", regs.eax, regs.eax);
+      printf("[INT-0x63] Registers: EBX=%u ECX=%u EDX=%u ESI=%u\n", regs.ebx, regs.ecx, regs.edx, regs.esi);
+      
       uint32_t args[4] = {regs.ebx, regs.ecx, regs.edx, regs.esi};
       uint32_t result;
       
@@ -3025,8 +3028,12 @@ status_t InterpreterX86_32::Execute_INT(GuestContext &context,
       RealSyscallDispatcher *real_dispatcher = dynamic_cast<RealSyscallDispatcher*>(&fDispatcher);
       if (real_dispatcher && real_dispatcher->HandleGUISyscall(regs.eax, args, &result)) {
         regs.eax = result;
-        printf("[INT] GUI syscall completed, result=%u\n", result);
+        printf("[INT-0x63] ✅ GUI syscall SUCCESS, result=%u\n", result);
         return B_OK;
+      } else {
+        printf("[INT-0x63] ❌ GUI syscall FAILED - no handler\n");
+        regs.eax = -1;
+        return B_ERROR;
       }
     }
     

@@ -1,7 +1,14 @@
 #pragma once
 
 #include "PlatformTypes.h"
+
+// Only include REAL Haiku backend when compiling on Haiku
+#ifdef __HAIKU__
 #include "RealGUIBackend.h"
+#define HAS_REAL_HAIKU_BACKEND 1
+#else
+#define HAS_REAL_HAIKU_BACKEND 0
+#endif
 #include <cstdint>
 #include <cstdio>
 #include <map>
@@ -213,22 +220,46 @@ private:
     // Thread safety
     std::mutex gui_mutex;
     
-    // REAL Haiku GUI backend
-    std::unique_ptr<RealGUIBackend> real_backend;
+    // GUI backend state
     bool use_real_backend;
+#if HAS_REAL_HAIKU_BACKEND
+    std::unique_ptr<RealGUIBackend> real_backend;
+#endif
     
     // Display initialization and management
     void InitializeDisplay() {
-        display_width = 1024;
-        display_height = 768;
-        frame_buffer_size = display_width * display_height * 4; // 32-bit RGBA
-        frame_buffer = std::make_unique<uint8_t[]>(frame_buffer_size);
+        printf("[GUI] Initializing GUI backend...\n");
+        use_real_backend = false;
         
-        // Initialize to white background
-        memset(frame_buffer.get(), 0xFF, frame_buffer_size);
+#if HAS_REAL_HAIKU_BACKEND
+        printf("[GUI] Attempting REAL Haiku Be API backend...\n");
         
-        printf("[GUI] Display initialized: %dx%d, framebuffer: %zu bytes\n",
-               display_width, display_height, frame_buffer_size);
+        // Initialize REAL Haiku GUI backend
+        real_backend = std::make_unique<RealGUIBackend>();
+        use_real_backend = real_backend->Initialize();
+        
+        if (use_real_backend) {
+            display_width = real_backend->GetScreenWidth();
+            display_height = real_backend->GetScreenHeight();
+            printf("[GUI] ✅ REAL Haiku backend connected: %dx%d display\n", display_width, display_height);
+        } else {
+            printf("[GUI] ❌ REAL Haiku backend failed, using fallback\n");
+        }
+#endif
+        
+        if (!use_real_backend) {
+            // Fallback to software rendering
+            display_width = 1024;
+            display_height = 768;
+            frame_buffer_size = display_width * display_height * 4; // 32-bit RGBA
+            frame_buffer = std::make_unique<uint8_t[]>(frame_buffer_size);
+            
+            // Initialize to white background
+            memset(frame_buffer.get(), 0xFF, frame_buffer_size);
+            
+            printf("[GUI] Using software fallback: %dx%d, framebuffer: %zu bytes\n",
+                   display_width, display_height, frame_buffer_size);
+        }
     }
     
     void CleanupDisplay() {
@@ -254,12 +285,17 @@ private:
     
     // Window management syscalls
     bool HandleCreateWindow(uint32_t *args, uint32_t *result) {
+        printf("[GUI-SYSCALL] CREATE_WINDOW called with detailed logging\n");
+        
         const char *title_ptr = (const char *)args[0];
         uint32_t width = args[1];
         uint32_t height = args[2];
         uint32_t x = args[3];
         uint32_t y = args[4];
         uint32_t flags = 0; // Default flags
+        
+        printf("[GUI-SYSCALL] CREATE_WINDOW: title='%s' size=%dx%d pos=(%d,%d)\n",
+               title_ptr ? title_ptr : "(null)", width, height, x, y);
         
         Window win;
         win.window_id = next_window_id++;
@@ -284,10 +320,30 @@ private:
             snprintf(win.title, sizeof(win.title), "Window %d", win.window_id);
         }
         
+#if HAS_REAL_HAIKU_BACKEND
+        // Use REAL Haiku backend if available
+        if (use_real_backend && real_backend) {
+                printf("[GUI-SYSCALL] Using REAL Haiku backend for window creation\n");
+            uint32_t real_window_id;
+            if (real_backend->CreateRealWindow(title_ptr, width, height, x, y, &real_window_id)) {
+                win.window_id = real_window_id;
+                windows[win.window_id] = win;
+                *result = win.window_id;
+                
+                printf("[GUI-SYSCALL] ✅ REAL Haiku window created: id=%d\n", win.window_id);
+                return true;
+            } else {
+                printf("[GUI-SYSCALL] ❌ REAL Haiku window creation failed\n");
+            }
+        }
+#endif
+        
+        // Fallback to software rendering
+        printf("[GUI-SYSCALL] Using software rendering fallback\n");
         windows[win.window_id] = win;
         *result = win.window_id;
         
-        printf("[GUI] Created window %d: '%s' (%dx%d at %d,%d) flags=0x%x\n",
+        printf("[GUI-SYSCALL] ✅ Software window created: id=%d '%s' (%dx%d at %d,%d) flags=0x%x\n",
                win.window_id, win.title, width, height, x, y, flags);
         
         // If hardware acceleration is available, initialize it
@@ -354,7 +410,7 @@ private:
         uint32_t x2 = args[2];
         uint32_t y2 = args[3];
         
-        printf("[GUI] Draw line (%d,%d) to (%d,%d) color=0x%x\n", 
+        printf("[GUI-SYSCALL] DRAW_LINE: (%d,%d) to (%d,%d) color=0x%x\n", 
                x1, y1, x2, y2, current_color);
         
         if (hardware_accelerated) {
@@ -643,7 +699,7 @@ private:
         uint32_t y = args[2];
         uint32_t buttons = args[3];
         
-        printf("[GUI] Mouse event: type=%d pos=(%d,%d) buttons=0x%x\n",
+        printf("[GUI-SYSCALL] MOUSE_EVENT: type=%d pos=(%d,%d) buttons=0x%x\n",
                event_type, x, y, buttons);
         
         // Route to appropriate window
@@ -658,7 +714,7 @@ private:
         uint32_t key_code = args[1];
         uint32_t modifiers = args[2];
         
-        printf("[GUI] Keyboard event: type=%d key=0x%x modifiers=0x%x\n",
+        printf("[GUI-SYSCALL] KEYBOARD_EVENT: type=%d key=0x%x modifiers=0x%x\n",
                event_type, key_code, modifiers);
         
         // Route to focused window
