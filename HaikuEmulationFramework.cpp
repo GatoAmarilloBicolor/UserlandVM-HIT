@@ -44,25 +44,79 @@ bool KitFactory::IsKitAvailable(uint32_t kit_id) {
 }
 
 std::string KitFactory::GetKitName(uint32_t kit_id) {
+    // Cache kit info to avoid creating temporary objects
+    static std::map<uint32_t, std::string> name_cache;
+    static std::mutex cache_mutex;
+    
+    {
+        std::lock_guard<std::mutex> lock(cache_mutex);
+        auto it = name_cache.find(kit_id);
+        if (it != name_cache.end()) {
+            return it->second;
+        }
+    }
+    
+    // Only create kit if not cached
     auto kit = CreateKit(kit_id);
     if (kit) {
-        return kit->GetKitName();
+        std::string name = kit->GetKitName();
+        {
+            std::lock_guard<std::mutex> lock(cache_mutex);
+            name_cache[kit_id] = name;
+        }
+        return name;
     }
     return "Unknown";
 }
 
 std::string KitFactory::GetKitVersion(uint32_t kit_id) {
+    // Cache kit info to avoid creating temporary objects
+    static std::map<uint32_t, std::string> version_cache;
+    static std::mutex cache_mutex;
+    
+    {
+        std::lock_guard<std::mutex> lock(cache_mutex);
+        auto it = version_cache.find(kit_id);
+        if (it != version_cache.end()) {
+            return it->second;
+        }
+    }
+    
+    // Only create kit if not cached
     auto kit = CreateKit(kit_id);
     if (kit) {
-        return kit->GetKitVersion();
+        std::string version = kit->GetKitVersion();
+        {
+            std::lock_guard<std::mutex> lock(cache_mutex);
+            version_cache[kit_id] = version;
+        }
+        return version;
     }
     return "0.0.0";
 }
 
 std::vector<std::string> KitFactory::GetKitCapabilities(uint32_t kit_id) {
+    // Cache kit info to avoid creating temporary objects
+    static std::map<uint32_t, std::vector<std::string>> capabilities_cache;
+    static std::mutex cache_mutex;
+    
+    {
+        std::lock_guard<std::mutex> lock(cache_mutex);
+        auto it = capabilities_cache.find(kit_id);
+        if (it != capabilities_cache.end()) {
+            return it->second;
+        }
+    }
+    
+    // Only create kit if not cached
     auto kit = CreateKit(kit_id);
     if (kit) {
-        return kit->GetCapabilities();
+        std::vector<std::string> capabilities = kit->GetCapabilities();
+        {
+            std::lock_guard<std::mutex> lock(cache_mutex);
+            capabilities_cache[kit_id] = capabilities;
+        }
+        return capabilities;
     }
     return {};
 }
@@ -79,16 +133,29 @@ void SyscallRouter::RegisterKit(IEmulationKit* kit) {
     
     // Register kit's syscalls
     auto supported_syscalls = kit->GetSupportedSyscalls();
+    const char* kit_name = kit->GetKitName();
+    uint32_t kit_id = kit->GetKitID();
+    
+    // Note: Maps don't have reserve(), but we avoid repeated string allocations
+    
     for (uint32_t syscall_num : supported_syscalls) {
         SyscallInfo info;
-        info.kit_id = kit->GetKitID();
+        info.kit_id = kit_id;
         info.syscall_num = syscall_num;
-        info.name = "Syscall_" + std::to_string(syscall_num);
-        info.description = "Syscall " + std::to_string(syscall_num) + " for " + kit->GetKitName();
+        
+        // Use more efficient string construction
+        char name_buffer[64];
+        snprintf(name_buffer, sizeof(name_buffer), "Syscall_%u", syscall_num);
+        info.name = name_buffer;
+        
+        char desc_buffer[128];
+        snprintf(desc_buffer, sizeof(desc_buffer), "Syscall %u for %s", syscall_num, kit_name);
+        info.description = desc_buffer;
+        
         info.is_async = false;
         info.timeout_ms = 5000;
         
-        syscall_registry[kit->GetKitID()][syscall_num] = info;
+        syscall_registry[kit_id][syscall_num] = std::move(info);
     }
     
     printf("[SyscallRouter] Registered kit: %s (ID: %d) with %zu syscalls\n",
@@ -196,7 +263,18 @@ SyscallRouter::SyscallStats SyscallRouter::GetSyscallStats(uint32_t kit_id, uint
 
 std::map<uint32_t, SyscallRouter::SyscallStats> SyscallRouter::GetAllStats() const {
     std::lock_guard<std::mutex> lock(router_mutex);
-    return syscall_stats;
+    
+    // Flatten the nested map to match the expected return type
+    std::map<uint32_t, SyscallStats> flattened_stats;
+    for (const auto& kit_pair : syscall_stats) {
+        uint32_t kit_id = kit_pair.first;
+        for (const auto& syscall_pair : kit_pair.second) {
+            uint32_t combined_syscall = (kit_id << 24) | (syscall_pair.first & 0x00FFFFFF);
+            flattened_stats[combined_syscall] = syscall_pair.second;
+        }
+    }
+    
+    return flattened_stats;
 }
 
 void SyscallRouter::ResetStats() {
@@ -469,19 +547,19 @@ bool EmulationEngine::Initialize() {
     printf("[EmulationEngine] Initializing Universal Haiku Emulation Framework...\n");
     
     // Load configuration
-    std::string config_file = GetSetting("config_file", "haiku_emulation.conf");
+    std::string config_file = config_manager.GetSetting("config_file", "haiku_emulation.conf");
     if (!config_manager.LoadFromFile(config_file)) {
         printf("[EmulationEngine] Using default configuration\n");
     }
     
     // Auto-discover and load plugins
-    std::string plugin_path = GetSetting("plugin_path", "./plugins");
+    std::string plugin_path = config_manager.GetSetting("plugin_path", "./plugins");
     if (plugin_system.LoadAllPlugins(plugin_path)) {
         printf("[EmulationEngine] Loaded plugins from: %s\n", plugin_path.c_str());
     }
     
     // Initialize performance monitoring if enabled
-    std::string perf_monitoring = GetSetting("performance_monitoring", "false");
+    std::string perf_monitoring = config_manager.GetSetting("performance_monitoring", "false");
     performance_monitoring = (perf_monitoring == "true");
     
     if (performance_monitoring) {

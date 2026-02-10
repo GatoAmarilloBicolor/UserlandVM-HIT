@@ -16,6 +16,7 @@
 #include <map>
 #include <string>
 #include <memory>
+#include "include/PlatformTypes.h"
 
 class BeAPIBridge {
 public:
@@ -28,36 +29,36 @@ public:
     void Shutdown();
     
     // Register guest app for Be API access
-    bool RegisterApp(uint32_t app_id, const char* app_name);
+    bool RegisterApp(haiku_id_t app_id, haiku_const_string_t app_name);
     
     // Generic syscall handler for ALL Be API calls
     // This is the universal entry point for 32-bit apps
-    uint32_t HandleBeAPISyscall(
-        uint32_t app_id,      // Which 32-bit app is calling
-        uint32_t syscall_num, // Syscall number
-        uint32_t *args,       // Arguments (up to 6)
-        uint32_t arg_count
+    haiku_status_t HandleBeAPISyscall(
+        haiku_id_t app_id,      // Which 32-bit app is calling
+        haiku_id_t syscall_num, // Syscall number
+        haiku_param_t *args,    // Arguments (up to 6)
+        haiku_param_t arg_count
     );
     
     // Window creation - works for any app
-    uint32_t CreateWindow(uint32_t app_id, const char* title, 
-                         uint32_t x, uint32_t y, uint32_t w, uint32_t h);
+    haiku_id_t CreateWindow(haiku_id_t app_id, haiku_const_string_t title, 
+                           haiku_param_t x, haiku_param_t y, haiku_param_t w, haiku_param_t h);
     
     // Drawing - works for any window
-    bool DrawLine(uint32_t app_id, uint32_t window_id, 
-                 int32_t x1, int32_t y1, int32_t x2, int32_t y2, uint32_t color);
-    bool FillRect(uint32_t app_id, uint32_t window_id,
-                 int32_t x, int32_t y, int32_t w, int32_t h, uint32_t color);
-    bool DrawString(uint32_t app_id, uint32_t window_id,
-                   int32_t x, int32_t y, const char* text, uint32_t color);
+    bool DrawLine(haiku_id_t app_id, haiku_id_t window_id, 
+                 haiku_value_t x1, haiku_value_t y1, haiku_value_t x2, haiku_value_t y2, haiku_param_t color);
+    bool FillRect(haiku_id_t app_id, haiku_id_t window_id,
+                 haiku_value_t x, haiku_value_t y, haiku_value_t w, haiku_value_t h, haiku_param_t color);
+    bool DrawString(haiku_id_t app_id, haiku_id_t window_id,
+                   haiku_value_t x, haiku_value_t y, haiku_const_string_t text, haiku_param_t color);
     
     // Display update
-    bool Flush(uint32_t app_id, uint32_t window_id);
+    bool Flush(haiku_id_t app_id, haiku_id_t window_id);
     
     // Window management
-    bool ShowWindow(uint32_t app_id, uint32_t window_id);
-    bool HideWindow(uint32_t app_id, uint32_t window_id);
-    bool DestroyWindow(uint32_t app_id, uint32_t window_id);
+    bool ShowWindow(haiku_id_t app_id, haiku_id_t window_id);
+    bool HideWindow(haiku_id_t app_id, haiku_id_t window_id);
+    bool DestroyWindow(haiku_id_t app_id, haiku_id_t window_id);
     
     // Check status
     bool IsConnected() const { return connected; }
@@ -80,10 +81,10 @@ private:
     void* libapp_handle;
     
     // App registry: app_id -> app_name
-    std::map<uint32_t, std::string> registered_apps;
+    std::map<haiku_id_t, std::string> registered_apps;
     
     // Window registry: (app_id, window_id) -> real BWindow*
-    std::map<std::pair<uint32_t, uint32_t>, void*> windows;
+    std::map<std::pair<haiku_id_t, haiku_id_t>, haiku_pointer_t> windows;
     
     // Load real Be API libraries
     bool LoadRealBeAPI();

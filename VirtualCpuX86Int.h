@@ -49,6 +49,7 @@ private:
 	void HandleException(uint8_t exception_num);
 	void HandleSoftwareInterrupt(uint8_t interrupt_num);
 	void HandleHardwareInterrupt(uint8_t interrupt_num);
+	void DumpCpuState();
 	
 	// Interrupt descriptor table (IDT)
 	InterruptDescriptor fIDT[256];
