@@ -5,13 +5,14 @@
 // Forward declaration
 class HaikuOSIPCSystem;
 
-// Only include REAL Haiku backend when compiling on Haiku
+// Include GUI backends
 #ifdef __HAIKU__
 #include "RealGUIBackend.h"
 #define HAS_REAL_HAIKU_BACKEND 1
 #else
 #define HAS_REAL_HAIKU_BACKEND 0
 #endif
+#include "HaikuNativeGUIBackend.h"
 #include <cstdint>
 #include <cstdio>
 #include <map>
@@ -73,6 +74,7 @@ public:
         uint32_t flags;
         void *view_data;
         uint32_t pixel_format;
+        host_framebuffer* framebuffer_handle;
     };
     
     // Bitmap structure for graphics acceleration
@@ -101,7 +103,7 @@ public:
                                 output_lines(0), hardware_accelerated(false), 
                                 display_width(1024), display_height(768), 
                                 current_color(0x00000000), network_initialized(false),
-                                ipc_system(nullptr) {
+                                ipc_system(nullptr), fNativeBackend(nullptr) {
         printf("[GUI] Initialized Full GUI Syscall Handler\n");
         printf("[GUI] Display: %dx%d, Hardware Accel: %s\n", 
                display_width, display_height, hardware_accelerated ? "ON" : "OFF");
@@ -237,9 +239,24 @@ private:
     
     // GUI backend state
     bool use_real_backend;
+    HaikuNativeGUIBackend* fNativeBackend;
 #if HAS_REAL_HAIKU_BACKEND
     std::unique_ptr<RealGUIBackend> real_backend;
 #endif
+    
+    // Helper to update framebuffer content
+    void UpdateFramebufferForWindow(Window& win, uint32_t x = 0, uint32_t y = 0, uint32_t width = 0, uint32_t height = 0) {
+        if (win.framebuffer_handle && ipc_system) {
+            // If no specific region given, update entire window
+            if (width == 0) width = win.width;
+            if (height == 0) height = win.height;
+            
+            // In a real implementation, this would copy the window's pixel data
+            // For now, just update the framebuffer region
+            uint32_t dummy_pixel = 0xFF0000FF; // Blue pixel
+            ipc_system->UpdateHostFramebuffer(win.framebuffer_handle, &dummy_pixel, x, y, width, height);
+        }
+    }
     
     // Display initialization and management
     void InitializeDisplay() {
@@ -336,9 +353,28 @@ private:
         }
         
 #if HAS_REAL_HAIKU_BACKEND
+        // ACTIVATE BACKEND:
+        if (!fNativeBackend) {
+            fNativeBackend = new HaikuNativeGUIBackend();
+            fNativeBackend->Initialize(width, height, title_ptr);
+            fNativeBackend->CreateWindow(title_ptr, 100, 100, width, height);
+            fNativeBackend->ShowWindow();
+        }
+        
+        // Connect framebuffer output to host for visualization
+        if (ipc_system) {
+            host_framebuffer fb;
+            if (ipc_system->ConnectToHostFramebuffer(&fb, width, height) == B_OK) {
+                printf("[GUI-SYSCALL] ✅ Connected to host framebuffer: %dx%d\n", width, height);
+                
+                // Store framebuffer reference for this window
+                win.framebuffer_handle = &fb;
+            }
+        }
+        
         // Use REAL Haiku backend if available
         if (use_real_backend && real_backend) {
-                printf("[GUI-SYSCALL] Using REAL Haiku backend for window creation\n");
+            printf("[GUI-SYSCALL] Using REAL Haiku backend for window creation\n");
             uint32_t real_window_id;
             if (real_backend->CreateRealWindow(title_ptr, width, height, x, y, &real_window_id)) {
                 win.window_id = real_window_id;
@@ -347,6 +383,25 @@ private:
                 
                 printf("[GUI-SYSCALL] ✅ REAL Haiku window created: id=%d\n", win.window_id);
                 return true;
+            } else {
+                printf("[GUI-SYSCALL] ❌ REAL Haiku window creation failed\n");
+            }
+        }
+        
+        // Fallback to software rendering
+        printf("[GUI-SYSCALL] Using software rendering fallback\n");
+        windows[win.window_id] = win;
+        *result = win.window_id;
+        
+        printf("[GUI-SYSCALL] ✅ Software window created: id=%d '%s' (%dx%d at %d,%d) flags=0x%x\n",
+               win.window_id, win.title, width, height, x, y, flags);
+        
+        // If hardware acceleration is available, initialize it
+        if (hardware_accelerated) {
+            InitializeHardwareAccelForWindow(win.window_id);
+        }
+        
+        return true;
             } else {
                 printf("[GUI-SYSCALL] ❌ REAL Haiku window creation failed\n");
             }
@@ -509,6 +564,14 @@ private:
             HardwareFlush();
         } else {
             SoftwareFlush();
+        }
+        
+        // Update framebuffer for all visible windows
+        for (auto& pair : windows) {
+            Window& win = pair.second;
+            if (win.visible && win.framebuffer_handle) {
+                UpdateFramebufferForWindow(win);
+            }
         }
         
         printf("[GUI] Flushed display\n");

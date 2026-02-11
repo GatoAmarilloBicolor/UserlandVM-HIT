@@ -1,0 +1,69 @@
+# Makefile para compilar libroot.so stub
+# Compila las clases básicas de Haiku que emiten INT 0x63
+
+CC = gcc
+CFLAGS = -Wall -Wextra -O2 -fPIC -shared
+CFLAGS += -std=c++11
+INCLUDES = -I.
+
+# Archivos fuente
+SOURCES = libroot_minimal.cpp
+
+# Archivos objeto
+OBJECTS = $(SOURCES:.cpp=.o)
+
+# Archivo de salida
+TARGET = libroot.so
+
+# Reglas de construcción
+all: $(TARGET)
+
+$(TARGET): $(OBJECTS)
+	@echo "Construyendo $(TARGET)..."
+	$(CC) $(CFLAGS) $(INCLUDES) -o $@ $(OBJECTS)
+	@echo "$(TARGET) construido exitosamente"
+
+%.o: %.cpp
+	@echo "Compilando $<..."
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+# Instalar en el sistema
+install: $(TARGET)
+	@echo "Instalando $(TARGET) en /usr/local/lib/"
+	sudo cp $(TARGET) /usr/local/lib/
+	sudo cp libroot_stub.h /usr/local/include/
+	sudo ldconfig
+	@echo "$(TARGET) instalado exitosamente"
+
+# Limpiar archivos temporales
+clean:
+	@echo "Limpiando archivos temporales..."
+	rm -f $(OBJECTS)
+	rm -f $(TARGET)
+
+# Desinstalar
+uninstall:
+	@echo "Desinstalando $(TARGET)..."
+	sudo rm -f /usr/local/lib/$(TARGET)
+	sudo rm -f /usr/local/include/libroot_stub.h
+	sudo ldconfig
+	@echo "$(TARGET) desinstalado"
+
+# Probar construcción
+test: $(TARGET)
+	@echo "Probando $(TARGET)..."
+	nm -D $(TARGET) | grep -E "(register_haiku_syscall_handler|B::)"
+
+# Mostrar ayuda
+help:
+	@echo "Makefile para libroot.so stub"
+	@echo ""
+	@echo "Objetivos disponibles:"
+	@echo "  all      - Construye $(TARGET)"
+	@echo "  clean    - Limpia archivos temporales"
+	@echo "  install  - Instala $(TARGET) en el sistema"
+	@echo "  uninstall- Desinstala $(TARGET) del sistema"
+	@echo "  test     - Prueba la construcción"
+	@echo "  help     - Muestra esta ayuda"
+
+.PHONY: all clean install uninstall test help

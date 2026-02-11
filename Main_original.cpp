@@ -6,125 +6,23 @@
 #include <string.h>
 #include <unistd.h>
 
-// Core VM components
-#include "../src/core/PerformanceConfig.h"
-#include "../src/core/InstructionCacheOptimization.h"
 #include "Loader.h"
 #include "DirectAddressSpace.h"
 #include "X86_32GuestContext.h"
 #include "InterpreterX86_32.h"
-
-// Haiku integration components
 #include "RealSyscallDispatcher.h"
 #include "HaikuOSIPCSystem.h"
 #include "libroot_stub.h"
-
-// Optimized memory management
-#include "../src/memory/EnhancedHeap.h"
-#include "../src/memory/OptimizedStringPool.h"
 
 // Be API Interceptor - CREA VENTANAS REALES
 // #include "BeAPIInterceptor.h" // TODO: Create this file
 // #include "config.h"
 
-// Enhanced memory management initialization
+// Minimal stub implementation for stable baseline
+// The full Main.cpp depends on Haiku kernel APIs and should be implemented later
+
 #include <sys/mman.h>
 #include <cstring>
-
-// Enhanced heap configuration
-#define USE_ENHANCED_HEAP 1
-#define USE_STRING_POOL 1
-
-// Global optimized components
-EnhancedHeap* g_enhanced_heap = nullptr;
-OptimizedStringPool* g_string_pool = nullptr;
-
-// Optimized memory allocation functions
-void* OPTIMIZED_MALLOC(size_t size) {
-    if (g_enhanced_heap) {
-        return g_enhanced_heap->Allocate(size);
-    }
-    return malloc(size);
-}
-
-void OPTIMIZED_FREE(void* ptr) {
-    if (g_enhanced_heap) {
-        g_enhanced_heap->Deallocate(ptr);
-        return;
-    }
-    free(ptr);
-}
-
-void* OPTIMIZED_REALLOC(void* ptr, size_t new_size) {
-    if (g_enhanced_heap) {
-        return g_enhanced_heap->Reallocate(ptr, new_size);
-    }
-    return realloc(ptr, new_size);
-}
-
-// Optimized string functions
-const char* OPTIMIZED_STRING_INTERN(const char* str) {
-    if (g_string_pool) {
-        return g_string_pool->Intern(str);
-    }
-    return str;
-}
-
-int OPTIMIZED_STRING_COMPARE(const char* str1, const char* str2) {
-    if (g_string_pool) {
-        return g_string_pool->Equals(str1, str2) ? 0 : (strcmp(str1, str2) > 0 ? 1 : -1);
-    }
-    return strcmp(str1, str2);
-}
-
-// Initialize performance configuration
-void InitializeOptimizedComponents() {
-    printf("[INIT] Initializing optimized components...\n");
-    
-    // Initialize performance configuration from environment
-    PerformanceConfig::Initialize();
-    
-    // Initialize enhanced heap if available
-    #ifdef USE_ENHANCED_HEAP
-    {
-        void* heap_memory = malloc(sizeof(EnhancedHeap) + 64 * 1024 * 1024);
-        if (heap_memory) {
-            g_enhanced_heap = new (heap_memory) EnhancedHeap(64 * 1024 * 1024);  // 64MB heap
-            if (g_enhanced_heap) {
-                g_enhanced_heap->SetCompactThreshold(128 * 1024);  // 128KB
-                g_enhanced_heap->EnableSanitization(PerformanceConfig::IsDebugEnabled());
-                printf("[INIT] Enhanced heap initialized\n");
-            }
-        }
-    }
-    #endif
-    
-    // Initialize string pool if available
-    #ifdef USE_STRING_POOL
-    {
-        void* pool_memory = malloc(sizeof(OptimizedStringPool) + 8192);
-        if (pool_memory) {
-            g_string_pool = new (pool_memory) OptimizedStringPool(8192);  // 8KB initial
-            if (g_string_pool) {
-                printf("[INIT] String pool initialized\n");
-            }
-        }
-    }
-    #endif
-    
-    // Initialize string pool if available
-    #ifdef USE_STRING_POOL
-    g_string_pool = new OptimizedStringPool(8192);  // 8KB initial
-    if (g_string_pool) {
-        printf("[INIT] String pool initialized\n");
-    }
-    #endif
-    
-    printf("[INIT] Performance mode: %s\n", 
-           PerformanceConfig::IsProductionModeEnabled() ? "PRODUCTION" : "DEBUG");
-    printf("[INIT] Verbose logging: %s\n", 
-           PerformanceConfig::IsVerboseLoggingEnabled() ? "ENABLED" : "DISABLED");
-}
 
 // Implement vm32_create_area - use posix mmap
 static area_id next_area_id = 1;
@@ -367,9 +265,6 @@ static char* ResolveBinaryPath(const char* program_spec) {
 }
 
 int main(int argc, char *argv[]) {
-  // Initialize optimized components first
-  InitializeOptimizedComponents();
-  
   // Parse command line arguments
   bool show_help = false;
   const char *binary_path = nullptr;
