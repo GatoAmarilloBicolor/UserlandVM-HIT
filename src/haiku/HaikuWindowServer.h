@@ -15,18 +15,34 @@
 #include <thread>
 #include <mutex>
 
+// Haiku status codes and basic types (only if not already defined)
+#ifndef B_OK
+#define B_OK                    0
+#endif
+#ifndef B_ERROR
+#define B_ERROR                 (-1)
+#endif
+#ifndef B_BAD_VALUE
+#define B_BAD_VALUE             (-2147483647)
+#endif
+#ifndef B_NO_MEMORY
+#define B_NO_MEMORY             (-2147483646)
+#endif
+#ifndef B_NO_INIT
+#define B_NO_INIT               (-2147483645)
+#endif
+
+typedef int32_t status_t;
+typedef int32_t haiku_status_t;
+
 // Forward declarations
 namespace B {
-    typedef int32_t status_t;
     typedef int32_t BWindow;
     typedef int32_t BView;
     typedef int32_t BApplication;
     typedef int32_t BMessenger;
     typedef int32_t BMessage;
 }
-
-// Explicit typedef for compatibility
-typedef int32_t haiku_status_t;
 
 namespace HaikuWindowServer {
 

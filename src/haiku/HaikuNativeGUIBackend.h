@@ -9,32 +9,34 @@
 #ifndef _HAIKU_GUI_BACKEND_H
 #define _HAIKU_GUI_BACKEND_H
 
+// Use our own definitions instead of including conflicting headers
+// #include "../../platform/haiku/gui/HaikuGUIBackend.h"
+
 // Haiku OS native includes - only when compiling on Haiku
-#ifdef __HAIKU__
-// Haiku OS native includes - only when available
 #ifdef __HAIKU__
 #include <InterfaceKit.h>
 #include <AppKit.h>
 #include <StorageKit.h>
 #include <SupportKit.h>
-#include "../../platform/haiku/gui/HaikuGUIBackend.h"
 #else
-// Stub definitions when not on Haiku
-#include "../../Phase4GUISyscalls.h"
-typedef void* BWindow;
-typedef void* BView;
-typedef void* BApplication;
-typedef uint32_t WindowHandle;
-typedef uint32_t color_space;
-typedef void* BBitmap;
-typedef void* BLooper;
-typedef void* BFont;
-typedef void* BMessage;
-typedef uint32_t rgb_color;
-typedef enum { INPUT_MOUSE, INPUT_KEYBOARD } InputEventType;
-typedef struct { int32_t left; int32_t top; int32_t right; int32_t bottom; } Rect;
-typedef struct { InputEventType type; union { struct { int32_t x; int32_t y; int32_t button; } mouse; struct { uint16_t key_code; uint8_t modifiers; } keyboard; } data; } InputEvent;
+// Include standard types first
+#include <cstdint>
+
+// Use existing types from PlatformTypes.h (should include int32_t)
+// Only define status codes if not already defined
+#ifndef B_OK
+#define B_OK                    0
+#endif
+#ifndef B_ERROR
+#define B_ERROR                 (-1)
+#endif
 typedef int32_t status_t;
+
+// Forward declaration to avoid including massive header files
+struct host_framebuffer;
+
+// Skip Phase4GUISyscalls.h to avoid circular includes and conflicts
+// We'll define our minimal GUI backend interface here
 #endif
 
 // Forward declarations
@@ -56,6 +58,21 @@ typedef enum { INPUT_MOUSE, INPUT_KEYBOARD } InputEventType;
 typedef struct { int32_t left; int32_t top; int32_t right; int32_t bottom; } Rect;
 typedef struct { InputEventType type; union { struct { int32_t x; int32_t y; int32_t button; } mouse; struct { uint16_t key_code; uint8_t modifiers; } keyboard; } data; } InputEvent;
 #endif
+
+// Define basic Haiku types to avoid conflicts
+typedef uint32_t WindowHandle;
+typedef uint32_t color_space;
+typedef void* BWindow;
+typedef void* BView;
+typedef void* BApplication;
+typedef void* BBitmap;
+typedef void* BLooper;
+typedef void* BFont;
+typedef void* BMessage;
+typedef uint32_t rgb_color;
+typedef enum { INPUT_MOUSE, INPUT_KEYBOARD } InputEventType;
+typedef struct { int32_t left; int32_t top; int32_t right; int32_t bottom; } Rect;
+typedef struct { InputEventType type; union { struct { int32_t x; int32_t y; int32_t button; } mouse; struct { uint16_t key_code; uint8_t modifiers; } keyboard; } data; } InputEvent;
 
 class HaikuNativeGUIBackend : public HaikuGUIBackend {
 public:

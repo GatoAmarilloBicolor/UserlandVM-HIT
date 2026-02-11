@@ -8,6 +8,7 @@
 #include "HaikuWindowServer.h"
 #include "HaikuOSIPCSystem.h"
 #include "Phase4GUISyscalls.h"
+#include "HaikuNativeBEBackend.h"
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netinet/in.h>
@@ -588,21 +589,41 @@ HaikuWindowServer* g_haiku_server = nullptr;
 status_t InitializeHaikuWindowServer() {
     printf("[MAIN] Inicializando sistema de ventanas Haiku...\n");
     
-    ServerConfig config;
-    config.display_width = 1024;
-    config.display_height = 768;
-    config.debug_mode = false;
+    // Inicializar el backend nativo de Haiku (nuestra implementación)
+    g_haiku_native_backend = new HaikuNativeBEBackend();
     
-    // Crear servidor
-    g_haiku_server = new HaikuWindowServer(config);
-    
-    if (!g_haiku_server || g_haiku_server->Initialize() != B_OK) {
-        printf("[MAIN] ERROR: No se pudo inicializar el servidor de ventanas\n");
-        return B_ERROR;
+    if (!g_haiku_native_backend) {
+        printf("[MAIN] ERROR: No se pudo crear el backend nativo de Haiku\n");
+        return B_NO_MEMORY;
     }
     
-    printf("[MAIN] ✅ Servidor de ventanas inicializado\n");
-    printf("[MAIN] Las aplicaciones invitadas verán interfaces nativas de Haiku\n");
+    // Inicializar el backend
+    if (!g_haiku_native_backend->Initialize()) {
+        printf("[MAIN] ERROR: No se pudo inicializar el backend nativo de Haiku\n");
+        delete g_haiku_native_backend;
+        g_haiku_native_backend = nullptr;
+        return B_NO_INIT;
+    }
+    
+    // Crear aplicación Haiku
+    status_t app_result = g_haiku_native_backend->CreateApplication("application/x-vnd.UserlandVM-Haiku");
+    if (app_result != B_OK) {
+        printf("[MAIN] ERROR: No se pudo crear aplicación Haiku\n");
+        g_haiku_native_backend->Shutdown();
+        delete g_haiku_native_backend;
+        g_haiku_native_backend = nullptr;
+        return app_result;
+    }
+    
+    // Conectar al servidor emulado de Haiku (si es necesario)
+    status_t conn_result = g_haiku_native_backend->ConnectToHaikuServer("localhost", 12345);
+    if (conn_result != B_OK) {
+        printf("[MAIN] WARNING: No se pudo conectar al servidor Haiku (continuando localmente)\n");
+    }
+    
+    printf("[MAIN] ✅ Backend nativo de Haiku inicializado\n");
+    printf("[MAIN] 🎯 Las aplicaciones invitadas verán interfaces NATIVAS de Haiku\n");
+    printf("[MAIN] 💾 Backend: HaikuNativeBEBackend (APIs reales de Haiku)\n");
     
     return B_OK;
 }

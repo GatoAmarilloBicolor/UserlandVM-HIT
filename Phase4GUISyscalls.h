@@ -12,7 +12,8 @@ class HaikuOSIPCSystem;
 #else
 #define HAS_REAL_HAIKU_BACKEND 0
 #endif
-#include "HaikuNativeGUIBackend.h"
+// Removed circular include to HaikuNativeGUIBackend.h
+// #include "src/haiku/HaikuNativeGUIBackend.h"
 #include <cstdint>
 #include <cstdio>
 #include <map>
