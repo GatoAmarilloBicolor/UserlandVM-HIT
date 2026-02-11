@@ -7,10 +7,12 @@
 #include <cstdint>
 
 // Forward declarations to linker
-void linker_init();
-uint32_t linker_load_library(const char* libname);
-uint32_t linker_resolve_symbol(const char* symbol_name);
-uint32_t linker_get_library_base(const char* libname);
+extern "C" {
+    void linker_init();
+    uint32_t linker_load_library(const char* libname);
+    uint32_t linker_resolve_symbol(const char* symbol_name);
+    uint32_t linker_get_library_base(const char* libname);
+}
 
 // Syscall numbers for dynamic loading
 #define SYSCALL_DLOPEN   0x3000

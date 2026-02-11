@@ -18,6 +18,18 @@
 #include <limits.h>
 // #include "HaikuOSIPCSystem.h"  // Comentado para evitar conflictos Be API
 #include "BeAPIWrapper.h"
+#include "AppServerBridge.h"
+#include "include/HaikuLogging.h"
+
+// Forward declarations for dynamic loading system
+extern "C" {
+    void linker_init();
+    uint32_t linker_load_library(const char* libname);
+    uint32_t linker_resolve_symbol(const char* symbol_name);
+    void linker_print_symbols();
+    void dynload_init();
+    void initialize_program_libraries();
+}
 
 // Haiku OS Constants - Enhanced Master API
 #define B_OS_NAME_LENGTH 32
@@ -519,6 +531,22 @@ int main(int argc, char* argv[]) {
     printf("[ENHANCED_VM] Working directory: %s\n", program_info.working_directory);
     printf("[ENHANCED_VM] User ID: %d, Team ID: %d\n", program_info.user_id, program_info.team_id);
     
+    // Initialize AppServerBridge (new component)
+    printf("\n[ENHANCED_VM] ============================================\n");
+    printf("[ENHANCED_VM] Initializing AppServer Bridge\n");
+    printf("[ENHANCED_VM] ============================================\n");
+    AppServerBridge::GetInstance().Initialize();
+    AppServerBridge::GetInstance().PrintStatus();
+    printf("[ENHANCED_VM] ============================================\n\n");
+    
+    // Initialize Dynamic Linker (core component)
+    printf("[ENHANCED_VM] ============================================\n");
+    printf("[ENHANCED_VM] Initializing Dynamic Linker\n");
+    printf("[ENHANCED_VM] ============================================\n");
+    linker_init();
+    linker_print_symbols();
+    printf("[ENHANCED_VM] ============================================\n\n");
+    
     // Enhanced memory management
     EnhancedMemoryManager haiku_memory(64 * 1024 * 1024);
     
@@ -545,10 +573,6 @@ int main(int argc, char* argv[]) {
         printf("\n[ENHANCED_VM] ============================================\n");
         printf("[ENHANCED_VM] Initializing Dynamic Linker\n");
         printf("[ENHANCED_VM] ============================================\n");
-        extern void dynload_init();
-        extern void initialize_program_libraries();
-        dynload_init();
-        initialize_program_libraries();
         printf("[ENHANCED_VM] ✓ Dynamic linker initialized\n");
         printf("[ENHANCED_VM] ============================================\n\n");
     }
