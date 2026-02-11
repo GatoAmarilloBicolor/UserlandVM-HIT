@@ -66,6 +66,8 @@ public:
         uint32_t height;
         uint32_t x;
         uint32_t y;
+        int32_t scroll_x;     // Scroll position
+        int32_t scroll_y;
         bool visible;
         uint32_t bg_color;
         uint32_t fg_color;
@@ -181,11 +183,148 @@ public:
                 return HandleWindowResize(args, result);
             case SYSCALL_DISPLAY_MODE:
                 return HandleDisplayMode(args, result);
+            case SYSCALL_ACQUIRE_BITMAP:  // 10011
+                return HandleAcquireBitmap(args, result);
+            case SYSCALL_RELEASE_BITMAP:  // 10012
+                return HandleReleaseBitmap(args, result);
+            case SYSCALL_NETWORK_INIT:   // 10013
+                return HandleNetworkInit(args, result);
+            case SYSCALL_NETWORK_SEND:   // 10014
+                return HandleNetworkSend(args, result);
+            case SYSCALL_DISPLAY_MODE:   // 10015
+                return HandleDisplayMode(args, result);
+            case SYSCALL_ACCELERATE:    // 10016
+                return HandleAccelerate(args, result);
+            case SYSCALL_SET_FONT:      // 10017
+                return HandleSetFont(args, result);
+            case SYSCALL_GET_INFO:      // 10018
+                return HandleGetInfo(args, result);
+            case SYSCALL_SET_CURSOR:    // 10019
+                return HandleSetCursor(args, result);
+            case SYSCALL_WINDOW_RESIZE:  // 10024
+                return HandleWindowResize(args, result);
+            case SYSCALL_WINDOW_FOCUS:  // 10025
+                return HandleWindowFocus(args, result);
+            case SYSCALL_CREATE_BITMAP:  // 10021
+                return HandleCreateBitmap(args, result);
             default:
                 printf(" (UNIMPLEMENTED)\n");
                 *result = -1;
                 return false;
+    }
+    
+    // Additional GUI handlers for complete functionality
+    bool HandleAccelerate(uint32_t *args, uint32_t *result) {
+        uint32_t operation = args[0];
+        uint32_t parameter = args[1];
+        
+        printf("[GUI-SYSCALL] HandleAccelerate(op=%u, param=%u)\n", operation, parameter);
+        
+        switch (operation) {
+            case 0: // Enable acceleration
+                hardware_accelerated = LIKELY(parameter == 1);
+                LOG_VERBOSE("[GUI] Hardware acceleration %s\n", hardware_accelerated ? "enabled" : "disabled");
+                break;
+            case 1: // Set acceleration mode
+                LOG_VERBOSE("[GUI] Acceleration mode set to %u\n", parameter);
+                break;
+            default:
+                LOG_VERBOSE("[GUI] Unknown acceleration operation: %u\n", operation);
+                *result = -1;
+                return false;
         }
+        
+        *result = 0;
+        return true;
+    }
+    
+    bool HandleSetFont(uint32_t *args, uint32_t *result) {
+        const char* font_name = (const char*)args[0];
+        uint32_t font_size = args[1];
+        uint32_t font_flags = args[2];
+        
+        printf("[GUI-SYSCALL] HandleSetFont(name='%s', size=%u, flags=0x%x)\n", 
+               font_name ? font_name : "(null)", font_size, font_flags);
+        
+        // Store current font settings
+        current_font_size = font_size;
+        current_font_flags = font_flags;
+        
+        if (font_name) {
+            strncpy(current_font_name, font_name, sizeof(current_font_name) - 1);
+            current_font_name[sizeof(current_font_name) - 1] = '\0';
+        } else {
+            current_font_name[0] = '\0';
+        }
+        
+        LOG_VERBOSE("[GUI] Font set: %s %upx (flags: 0x%x)\n", 
+                   current_font_name, current_font_size, current_font_flags);
+        
+        *result = 0;
+        return true;
+    }
+    
+    bool HandleSetCursor(uint32_t *args, uint32_t *result) {
+        uint32_t cursor_type = args[0];
+        uint32_t cursor_data = args[1];
+        
+        printf("[GUI-SYSCALL] HandleSetCursor(type=%u, data=0x%x)\n", cursor_type, cursor_data);
+        
+        // Store cursor settings
+        current_cursor_type = cursor_type;
+        
+        switch (cursor_type) {
+            case 0: // Arrow cursor
+                LOG_VERBOSE("[GUI] Arrow cursor set\n");
+                break;
+            case 1: // I-beam cursor
+                LOG_VERBOSE("[GUI] I-beam cursor set\n");
+                break;
+            case 2: // Hand cursor
+                LOG_VERBOSE("[GUI] Hand cursor set\n");
+                break;
+            case 3: // Custom cursor from data
+                LOG_VERBOSE("[GUI] Custom cursor set (data: 0x%x)\n", cursor_data);
+                break;
+            default:
+                LOG_VERBOSE("[GUI] Unknown cursor type: %u\n", cursor_type);
+                *result = -1;
+                return false;
+        }
+        
+        *result = 0;
+        return true;
+    }
+    
+    bool HandleScrollWindow(uint32_t *args, uint32_t *result) {
+        int32_t window_id = (int32_t)args[0];
+        int32_t scroll_x = (int32_t)args[1];
+        int32_t scroll_y = (int32_t)args[2];
+        
+        printf("[GUI-SYSCALL] HandleScrollWindow(id=%d, x=%d, y=%d)\n", 
+               window_id, scroll_x, scroll_y);
+        
+        auto it = windows.find(window_id);
+        if (UNLIKELY(it == windows.end())) {
+            printf("[GUI] ERROR: Window %d not found for scrolling\n", window_id);
+            *result = -1;
+            return false;
+        }
+        
+        Window& win = it->second;
+        
+        // Update window scroll position (simulate)
+        win.scroll_x = scroll_x;
+        win.scroll_y = scroll_y;
+        
+        LOG_VERBOSE("[GUI] Window %d scrolled to (%d,%d)\n", window_id, scroll_x, scroll_y);
+        
+        // Invalidate window to trigger redraw
+        InvalidateRect(0, 0, win.width, win.height);
+        
+        *result = 0;
+        return true;
+    }
     }
     
     void PrintWindowInfo() {
@@ -1243,6 +1382,35 @@ private:
             printf("[GUI] Hardware resize for window %d to %dx%d\n", window_id, new_width, new_height);
         } else {
             printf("[GUI] Software resize for window %d to %dx%d\n", window_id, new_width, new_height);
+        }
+    }
+    
+    // Additional GUI Functions Implementation
+    void UpdateDisplayInfo() {
+        printf("[GUI] Display info updated: %dx%d, %s\n", 
+               display_width, display_height, 
+               hardware_accelerated ? "hardware accelerated" : "software");
+    }
+    
+    void ValidateWindowState() {
+        for (const auto& pair : windows) {
+            const Window& win = pair.second;
+            LOG_VERBOSE("[GUI] Window %d: %s, visible=%s, focused=%s, pos=(%d,%d), size=(%dx%d)\n",
+                       pair.first, win.title,
+                       win.visible ? "yes" : "no",
+                       win.focused ? "yes" : "no",
+                       win.x, win.y, win.width, win.height);
+        }
+    }
+    
+    void OptimizePerformance() {
+        // Enable optimizations based on current load
+        if (windows.size() > 10) {
+            hardware_accelerated = true;
+            LOG_VERBOSE("[GUI] Enabling hardware acceleration for %zu windows\n", windows.size());
+        } else {
+            hardware_accelerated = false;
+            LOG_VERBOSE("[GUI] Using software rendering for %zu windows\n", windows.size());
         }
     }
 };
