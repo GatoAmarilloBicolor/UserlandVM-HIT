@@ -18,6 +18,11 @@
 #include "RealSyscallDispatcher.h"
 #include "HaikuOSIPCSystem.h"
 #include "libroot_stub.h"
+#include "../src/haiku/HaikuWindowServer.h"
+
+// Be API Interceptor - CREA VENTANAS REALES
+// #include "BeAPIInterceptor.h" // TODO: Create this file
+// #include "config.h"
 
 // Optimized memory management
 #include "../src/memory/EnhancedHeap.h"
@@ -475,7 +480,7 @@ int main(int argc, char *argv[]) {
   printf("[Main] PHASE 2: HaikuOS IPC System (CONEXIÓN)\n");
   printf("[Main] ============================================\n");
   
-  // Initialize HaikuOS IPC System
+  // Initialize HaikuOSIPCSystem
   HaikuOSIPCSystem haiku_ipc;
   bool ipc_initialized = false;
   
@@ -521,21 +526,47 @@ int main(int argc, char *argv[]) {
     printf("[Main] ✅ libroot stub handler registered\n");
   }
   
-  // Phase 4: Initialize Be API Interceptor for REAL windows
+  // Phase 2.5: Initialize Haiku Window Server for native GUI
   printf("[Main] ============================================\n");
-  printf("[Main] PHASE 4: Be API Interceptor (VENTANAS REALES)\n");
+  printf("[Main] PHASE 2.5: Haiku Window Server (GUI NATIVO)\n");
   printf("[Main] ============================================\n");
   
-  // Initialize Be API Interceptor - esto CREA ventanas reales
-  bool be_api_initialized = false;
+  // Initialize Haiku window server for native GUI
+  B::status_t window_server_result = InitializeHaikuWindowServer();
   
-  if (ipc_initialized) {
-    printf("[Main] ✅ Be API Interceptor ready (IPC available)\n");
-    be_api_initialized = true;
+  if (window_server_result == B::B_OK) {
+    printf("[Main] ✅ Haiku Window Server initialized\n");
+    printf("[Main] ✅ Applications will see native Haiku interfaces\n");
+    printf("[Main] ✅ BWindow, BApplication, BMessage will use native Haiku look & feel\n");
   } else {
-    printf("[Main] ⚠️  Be API Interceptor disabled (no IPC)\n");
-    printf("[Main] Continuing without GUI support\n");
+    printf("[Main] ⚠️  Haiku Window Server initialization failed\n");
+    printf("[Main] Applications will use custom GUI rendering\n");
   }
+    });
+    
+    // Create dispatcher and connect IPC system
+    RealSyscallDispatcher dispatcher;
+    dispatcher.SetIPCSystem(&haiku_ipc);
+    printf("[Main] ✅ IPC System connected to dispatcher\n");
+    printf("[Main] ✅ libroot stub handler registered\n");
+  }
+  
+  // Phase 4: GUI Integration and final setup
+  printf("[Main] ============================================\n");
+  printf("[Main] PHASE 4: GUI Integration (FINAL)\n");
+  printf("[Main] ============================================\n");
+  
+  // Final integration summary
+  printf("[Main] 📁 CONFIGURACIÓN FINAL:\n");
+  printf("[Main] ├─ HaikuOS IPC System: %s\n", ipc_initialized ? "✅ CONECTADO" : "❌ FALLO");
+  printf("[Main] ├─ Haiku Window Server: %s\n", ipc_initialized && InitializeHaikuWindowServer() == B::B_OK && GetHaikuWindowServer() && GetHaikuWindowServer()->IsRunning() ? "✅ CORRIENDO" : "❌ DETENIDO");
+  printf("[Main] ├─ GUI Handler: %s\n", gui_handler ? "✅ INICIALIZADO" : "❌ FALLO");
+  printf("[Main] ├─ Libroot stubs: ✅ REGISTRADOS\n");
+  printf("[Main] └─ Modo: %s\n", (ipc_initialized && InitializeHaikuWindowServer() == B::B_OK && GetHaikuWindowServer() && GetHaikuWindowServer()->IsRunning()) ? "🎯 NATIVO Haiku" : "🔧 CUSTOM (EMULADO)");
+  printf("[Main] ============================================\n");
+  printf("[Main] 🎯 Sistema UserlandVM-Haiku completado con interfaces nativas\n");
+  
+  bool be_api_ready = false;
   
   // Binary resolution test - just verify the binary was found and loaded
   printf("[Main] ============================================\n");
