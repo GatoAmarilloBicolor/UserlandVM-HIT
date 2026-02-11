@@ -20,6 +20,7 @@
 #include "BeAPIWrapper.h"
 #include "AppServerBridge.h"
 #include "include/HaikuLogging.h"
+#include "SimpleHaikuGUI.h"
 
 // Forward declarations for dynamic loading system
 extern "C" {
@@ -575,8 +576,8 @@ int main(int argc, char* argv[]) {
     printf("[ENHANCED_VM] ============================================\n");
     
     // Initialize GUI subsystem
-    // GUI window creation disabled
-    // GUI window show disabled
+    CreateHaikuWindow("UserlandVM - Haiku Program Execution");
+    ShowHaikuWindow();
     printf("[ENHANCED_VM] ✓ GUI system initialized\n");
     printf("[ENHANCED_VM] ✓ Main window created and visible\n");
     printf("[ENHANCED_VM] ============================================\n\n");
@@ -600,12 +601,11 @@ int main(int argc, char* argv[]) {
     // ========== CREAR VENTANA REAL DE HAIKU ==========
     printf("\n[MAIN] Creating Haiku window for executed app...\n");
     
-    // GUI window creation disabled
-    // GUI window show disabled
+    ProcessWindowEvents();
     printf("[MAIN] ✅ VENTANA HAIKU MOSTRADA CON WEBPOSITIVE\n");
     
     // Correr loop de aplicación
-    // GUI event processing disabled
+    DestroyHaikuWindow();
     
     return 0;
 }
