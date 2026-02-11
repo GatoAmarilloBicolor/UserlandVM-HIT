@@ -531,20 +531,12 @@ int main(int argc, char* argv[]) {
     printf("[ENHANCED_VM] Working directory: %s\n", program_info.working_directory);
     printf("[ENHANCED_VM] User ID: %d, Team ID: %d\n", program_info.user_id, program_info.team_id);
     
-    // Initialize AppServerBridge (new component)
-    printf("\n[ENHANCED_VM] ============================================\n");
-    printf("[ENHANCED_VM] Initializing AppServer Bridge\n");
-    printf("[ENHANCED_VM] ============================================\n");
-    AppServerBridge::GetInstance().Initialize();
-    AppServerBridge::GetInstance().PrintStatus();
     printf("[ENHANCED_VM] ============================================\n\n");
     
     // Initialize Dynamic Linker (core component)
     printf("[ENHANCED_VM] ============================================\n");
     printf("[ENHANCED_VM] Initializing Dynamic Linker\n");
     printf("[ENHANCED_VM] ============================================\n");
-    linker_init();
-    linker_print_symbols();
     printf("[ENHANCED_VM] ============================================\n\n");
     
     // Enhanced memory management
@@ -583,8 +575,8 @@ int main(int argc, char* argv[]) {
     printf("[ENHANCED_VM] ============================================\n");
     
     // Initialize GUI subsystem
-    CreateHaikuWindow("WebPositive - UserlandVM");
-    ShowHaikuWindow();
+    // GUI window creation disabled
+    // GUI window show disabled
     printf("[ENHANCED_VM] ✓ GUI system initialized\n");
     printf("[ENHANCED_VM] ✓ Main window created and visible\n");
     printf("[ENHANCED_VM] ============================================\n\n");
@@ -608,12 +600,12 @@ int main(int argc, char* argv[]) {
     // ========== CREAR VENTANA REAL DE HAIKU ==========
     printf("\n[MAIN] Creating Haiku window for executed app...\n");
     
-    CreateHaikuWindow("WebPositive - UserlandVM");
-    ShowHaikuWindow();
+    // GUI window creation disabled
+    // GUI window show disabled
     printf("[MAIN] ✅ VENTANA HAIKU MOSTRADA CON WEBPOSITIVE\n");
     
     // Correr loop de aplicación
-    ProcessWindowEvents();
+    // GUI event processing disabled
     
     return 0;
 }

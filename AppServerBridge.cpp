@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <unistd.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 
 ///////////////////////////////////////////////////////////////////////////
 // AppServerBridge Implementation
@@ -422,22 +424,47 @@ void AppServerBridge::PrintStatus() const
 bool AppServerBridge::ConnectToAppServer()
 {
     // In a real implementation, this would connect to Haiku's app_server
-    // For now, we use in-process simulation
+    // For now, we simulate the connection
     
-    HAIKU_LOG_BEAPI("Using in-process app_server simulation (no socket connection needed)");
+    // Try to find app_server port
+    const char* display = getenv("DISPLAY");
+    if (!display) {
+        display = "/tmp/app_server_socket";
+    }
     
-    // Simulate connection by setting dummy values
-    app_server_connection = (void*)(intptr_t)1;
+    // Create Unix domain socket connection
+    int sock = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (sock < 0) {
+        HAIKU_LOG_BEAPI_WARN("Failed to create socket for app_server connection");
+        return false;
+    }
+    
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    strncpy(addr.sun_path, display, sizeof(addr.sun_path) - 1);
+    
+    if (connect(sock, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        close(sock);
+        HAIKU_LOG_BEAPI_WARN("Failed to connect to app_server socket");
+        return false;
+    }
+    
+    app_server_connection = (void*)(intptr_t)sock;
     app_server_port = 1; // Simulated port
     
-    HAIKU_LOG_BEAPI("AppServer simulation initialized successfully");
+    HAIKU_LOG_BEAPI("Connected to app_server successfully");
     return true;
 }
 
 void AppServerBridge::DisconnectFromAppServer()
 {
-    // In simulation mode, nothing to disconnect
-    app_server_connection = nullptr;
+    if (app_server_connection) {
+        int sock = (int)(intptr_t)app_server_connection;
+        close(sock);
+        app_server_connection = nullptr;
+    }
+    
     app_server_port = 0;
 }
 
