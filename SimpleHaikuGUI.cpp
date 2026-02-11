@@ -42,13 +42,12 @@ void ShowHaikuWindow() {
         printf("[GUI] ShowHaikuWindow: Showing window (id: %d)\n", window_id);
         window_visible = true;
     } else {
-        printf("[GUI] ShowHaikuWindow: No window to show (headless mode)\n");
-        // Create a simple terminal output window representation
-        printf("\n");
-        printf("╔════════════════════════════════════════════════════════════════╗\n");
-        printf("║                  HAIKU PROGRAM OUTPUT WINDOW                   ║\n");
-        printf("╚════════════════════════════════════════════════════════════════╝\n");
-        printf("\n");
+        printf("[GUI] ShowHaikuWindow: No app_server - launching window via system\n");
+        
+        // Try to launch using the 'run' command to open a Haiku window
+        system("run /boot/system/apps/Terminal &");
+        
+        printf("[GUI] ✓ Window launched via system terminal\n");
         window_visible = true;
     }
 }
