@@ -39,6 +39,14 @@
 #include "GuestContext.h"
 #include "SyscallDispatcher.h"
 
+// Include all Haiku API headers
+#include "haiku/headers/Haiku/SupportKit.h"
+#include "haiku/headers/Haiku/StorageKit.h"
+#include "haiku/headers/Haiku/InterfaceKit.h"
+#include "haiku/headers/Haiku/ApplicationKit.h"
+#include "haiku/headers/Haiku/NetworkKit.h"
+#include "haiku/headers/Haiku/MediaKit.h"
+
 // ============================================================================
 // HAIKU API VIRTUALIZER - Simplified Implementation
 // ============================================================================

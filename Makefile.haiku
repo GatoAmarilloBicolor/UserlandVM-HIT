@@ -79,6 +79,7 @@ kits:
 	@echo "🔨 Building individual Haiku kits..."
 	$(CXX) $(CXXFLAGS) -c HaikuStorageKit.cpp -o HaikuStorageKit.o
 	$(CXX) $(CXXFLAGS) -c HaikuApplicationServer.cpp -o HaikuApplicationServer.o
+	$(CXX) $(CXXFLAGS) -c haiku/implementation/HaikuMediaKit.cpp -o haiku/implementation/HaikuMediaKit.o
 	@echo "✅ Individual kits compiled"
 
 # Debug build
