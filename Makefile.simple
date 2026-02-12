@@ -1,0 +1,45 @@
+# Simple Makefile for UserlandVM - Non-Headless Compilation
+# This builds the main executable without headless mode
+
+CXX = g++
+CXXFLAGS = -std=c++17 -O3 -Wall -Wextra -fPIC
+LDFLAGS = -lstdc++ -lm -lpthread
+
+TARGET = userlandvm_noheadless
+
+# Only compile Main.cpp - no dependencies on broken headers
+SOURCES = Main.cpp
+OBJECTS = $(SOURCES:.cpp=.o)
+
+all: $(TARGET)
+
+$(TARGET): $(OBJECTS)
+	@echo "🔗 Linking $@..."
+	$(CXX) $(CXXFLAGS) -o $@ $(OBJECTS) $(LDFLAGS)
+	@ls -lh $@
+	@echo "✅ Build successful: $@"
+
+%.o: %.cpp
+	@echo "🔨 Compiling $<..."
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+clean:
+	@echo "🧹 Cleaning..."
+	rm -f $(OBJECTS) $(TARGET)
+	@echo "✅ Clean complete"
+
+install: $(TARGET)
+	@echo "📦 Installing to system..."
+	sudo cp $(TARGET) /usr/local/bin/userlandvm-noheadless
+	@echo "✅ Installed to /usr/local/bin/userlandvm-noheadless"
+
+help:
+	@echo "UserlandVM Simple Build System"
+	@echo "=============================="
+	@echo "Targets:"
+	@echo "  make         - Build userlandvm_noheadless"
+	@echo "  make clean   - Remove build artifacts"
+	@echo "  make install - Install to /usr/local/bin"
+	@echo "  make help    - Show this help"
+
+.PHONY: all clean install help
