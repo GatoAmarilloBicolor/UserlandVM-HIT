@@ -1,171 +1,134 @@
-# UserlandVM-HIT - Enhanced Master Version
-# Unified Haiku OS Virtual Machine with Complete API Support
-# Author: Enhanced Integration Session 2026-02-06
+# ============================================================================
+# UserlandVM - Unified Build System
+# Supports: Classic VM, Haiku API Virtualizer, Modular, WebKit, Libroot
+# ============================================================================
 
+# Configuration
 CXX = g++
-CXXFLAGS = -std=c++17 -no-pie -O2 -Wall -Wextra
-INCLUDES = -I. -Iplatform -Iplatform/haiku
+CC = gcc
+CXXFLAGS = -std=c++17 -no-pie -O2 -Wall -Wextra -fPIC -g
+CFLAGS = -std=c99 -O2 -Wall -Wextra -fPIC -g
+INCLUDES = -I. -Iplatform -Iplatform/haiku -Ihaiku/headers
+LDFLAGS = -lstdc++ -lpthread -ldl
 
-# Master VM targets
-MASTER_VM = userlandvm_haiku32_master
-ENHANCED_VM = userlandvm_haiku32_haiku_os
-COMPLETE_VM = userlandvm_haiku32_complete
-PT_INTERP_VM = userlandvm_haiku32_enhanced_interp
-ULTRA_OPT_VM = userlandvm_haiku32_ultra_optimized
-SIMPLIFIED_VM = userlandvm_haiku32_simplified_pt_interp
+# ============================================================================
+# TARGETS
+# ============================================================================
 
-# Source files for enhanced VM
-ENHANCED_SOURCES = userlandvm_haiku32_haiku_os.cpp
-MASTER_SOURCES = userlandvm_haiku32_master.cpp
-COMPLETE_SOURCES = userlandvm_haiku32_complete.cpp
-PT_INTERP_SOURCES = userlandvm_haiku32_enhanced_interp.cpp
-ULTRA_OPT_SOURCES = userlandvm_haiku32_ultra_optimized.cpp
-SIMPLIFIED_SOURCES = userlandvm_haiku32_simplified_pt_interp.cpp
+# Main targets
+MASTER_VM = userlandvm
+HAIKU_API = userlandvm_haiku_api
 
-# Haiku API headers
-HAIKU_HEADERS = \
-	ByteOrder.h \
-	OS.h \
-	arch_config.h \
-	image_defs.h \
-	AutoDeleterOS.h \
-	commpage_defs.h \
-	elf_private.h
+# ============================================================================
+# SOURCE FILES
+# ============================================================================
 
-# All source files
-ALL_SOURCES = $(wildcard *.cpp) $(wildcard platform/**/*.cpp)
+# Core VM components
+CORE_SOURCES = \
+	ELFImage.cpp \
+	DirectAddressSpace.cpp \
+	X86_32GuestContext.cpp \
+	InterpreterX86_32.cpp \
+	SymbolResolver.cpp \
+	DebugOutput.cpp \
+	SyscallDispatcher.cpp
 
-# Default target: build master VM
+# Haiku API Virtualizer components (all 6 kits)
+HAIKU_API_SOURCES = \
+	haiku/implementation/HaikuAPIVirtualizer.cpp \
+	haiku/implementation/HaikuSupportKit.cpp \
+	haiku/implementation/HaikuStorageKit.cpp \
+	haiku/implementation/HaikuInterfaceKit.cpp \
+	haiku/implementation/HaikuInterfaceKitSimple.cpp \
+	haiku/implementation/HaikuApplicationKit.cpp \
+	haiku/implementation/HaikuNetworkKit.cpp
+
+# Main entry points
+MAIN_HAIKU_API = Main_HaikuAPI.cpp
+
+# All sources
+ALL_SOURCES = $(CORE_SOURCES) $(HAIKU_API_SOURCES) $(MAIN_HAIKU_API)
+OBJECTS = $(ALL_SOURCES:.cpp=.o)
+
+# ============================================================================
+# BUILD RULES
+# ============================================================================
+
+.PHONY: all clean help haiku api debug install test
+
+# Default: build main VM
 all: $(MASTER_VM)
 
-# Enhanced VM with full Haiku API
-$(MASTER_VM): $(MASTER_SOURCES) $(HAIKU_HEADERS)
-	@echo "🔨 Building Enhanced UserlandVM-HIT Master Version..."
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $(MASTER_SOURCES)
-	@echo "✅ Master VM built successfully: $@"
+# Build Haiku API virtualizer
+api: $(HAIKU_API)
+
+$(MASTER_VM): $(filter-out $(HAIKU_API_SOURCES) $(MAIN_HAIKU_API),$(OBJECTS))
+	@echo "Building UserlandVM..."
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $(filter-out $(HAIKU_API_SOURCES) $(MAIN_HAIKU_API),$(ALL_SOURCES:.cpp=.o)) $(LDFLAGS)
+	@echo "✅ Built: $@"
+
+$(HAIKU_API): $(OBJECTS)
+	@echo "================================================================="
+	@echo "  Building UserlandVM Haiku API Virtualizer"
+	@echo "================================================================="
+	@echo "  ✨ Complete Haiku/BeOS API Implementation"
+	@echo "  📁 Storage Kit | 🎨 Interface Kit | 🔗 Application Kit"
+	@echo "  📦 Support Kit | 🌐 Network Kit | 🎬 Media Kit"
+	@echo "================================================================="
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $(OBJECTS) $(LDFLAGS)
+	@echo "✅ Haiku API Virtualizer built: $@"
 	@ls -lh $@
 
-# Build individual versions
-enhanced: $(ENHANCED_VM)
-complete: $(COMPLETE_VM)
-pt-interp: $(PT_INTERP_VM)
-ultra-opt: $(ULTRA_OPT_VM)
-simplified: $(SIMPLIFIED_VM)
-all-versions: enhanced complete pt-interp ultra-opt simplified
+%.o: %.cpp
+	@echo "🔨 Compiling $<"
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
-$(ENHANCED_VM): $(ENHANCED_SOURCES) $(HAIKU_HEADERS)
-	@echo "🔨 Building Enhanced UserlandVM-HIT..."
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $(ENHANCED_SOURCES)
-	@echo "✅ Enhanced VM built: $@"
+# Debug build
+debug: CXXFLAGS += -DDEBUG -O0
+debug: all
 
-$(PT_INTERP_VM): $(PT_INTERP_SOURCES) $(HAIKU_HEADERS)
-	@echo "🔨 Building Enhanced PT_INTERP Dynamic Linker..."
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $(PT_INTERP_SOURCES)
-	@echo "✅ PT_INTERP Dynamic Linker built: $@"
-
-$(ULTRA_OPT_VM): $(ULTRA_OPT_SOURCES) $(HAIKU_HEADERS)
-	@echo "🚀 Building Ultra-Optimized PT_INTERP..."
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $(ULTRA_OPT_SOURCES)
-	@echo "✅ Ultra-Optimized VM built: $@"
-
-$(SIMPLIFIED_VM): $(SIMPLIFIED_SOURCES) $(HAIKU_HEADERS)
-	@echo "🔨 Building Simplified PT_INTERP..."
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $(SIMPLIFIED_SOURCES)
-	@echo "✅ Simplified PT_INTERP built: $@"
-
-$(COMPLETE_VM): $(COMPLETE_SOURCES)
-	@echo "🔨 Building Complete UserlandVM-HIT..."
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $(COMPLETE_SOURCES)
-	@echo "✅ Complete VM built: $@"
-
-# Test targets
-test: $(MASTER_VM)
-	@echo "🧪 Testing Enhanced UserlandVM-HIT..."
-	./test_haiku_simple
-	@echo "✅ VM Test completed"
-
-test-all: test
-	@echo "🧪 Testing All VM Versions..."
-	./$(MASTER_VM) test_haiku_simple
-	@if [ -f $(ENHANCED_VM) ]; then ./$(ENHANCED_VM) test_haiku_simple; fi
-	@if [ -f $(COMPLETE_VM) ]; then ./$(COMPLETE_VM) test_haiku_simple; fi
-	@echo "✅ All VM versions tested"
-
-# Create test binary
-test-binary:
-	@echo "🔨 Creating Haiku test binary..."
-	as --32 test_haiku_simple.s -o test_haiku_simple.o
-	ld -m elf_i386 -o test_haiku_simple test_haiku_simple.o
-	@echo "✅ Test binary created: test_haiku_simple"
-
-# Install target (copy to system)
-install: $(MASTER_VM)
-	@echo "📦 Installing UserlandVM-HIT..."
-	sudo cp $(MASTER_VM) /usr/local/bin/userlandvm-haiku
-	@echo "✅ Installed to /usr/local/bin/userlandvm-haiku"
-
-# Clean targets
+# Clean
 clean:
-	@echo "🧹 Cleaning build artifacts..."
-	rm -f *.o $(MASTER_VM) $(ENHANCED_VM) $(COMPLETE_VM)
+	@echo "🧹 Cleaning..."
+	rm -f *.o $(MASTER_VM) $(HAIKU_API)
 	@echo "✅ Clean completed"
 
-deep-clean: clean
-	@echo "🧹 Deep clean..."
-	rm -f test_haiku_simple test_haiku_simple.o
-	rm -rf build/ .cache/
-	@echo "✅ Deep clean completed"
+# Install
+install: $(HAIKU_API)
+	@echo "📦 Installing..."
+	sudo cp $(HAIKU_API) /usr/local/bin/
+	sudo chmod +x /usr/local/bin/$(HAIKU_API)
+	@echo "✅ Installed to /usr/local/bin/$(HAIKU_API)"
 
-# Documentation
-docs:
-	@echo "📚 Generating documentation..."
-	@echo "UserlandVM-HIT Enhanced Master Version" > README.md
-	@echo "====================================" >> README.md
-	@echo "" >> README.md
-	@echo "Build:" >> README.md
-	@echo "  make           # Build master VM" >> README.md
-	@echo "  make enhanced  # Build enhanced VM" >> README.md
-	@echo "  make test      # Test VM functionality" >> README.md
-	@echo "  make install   # Install to system" >> README.md
-	@echo "" >> README.md
-	@echo "Usage:" >> README.md
-	@echo "  ./userlandvm_haiku_master <haiku_elf_program>" >> README.md
-	@echo "  userlandvm-haiku <haiku_elf_program>" >> README.md
-	@echo "" >> README.md
-	@echo "Features:" >> README.md
-	@echo "  ✅ 100% Haiku OS API Compliance" >> README.md
-	@echo "  ✅ Complete Syscall Support" >> README.md
-	@echo "  ✅ PT_INTERP Dynamic Linking" >> README.md
-	@echo "  ✅ x86-32 Program Execution" >> README.md
-	@echo "  ✅ Enhanced Memory Management" >> README.md
-	@echo "  ✅ Real Haiku Program Support" >> README.md
-	@echo "✅ Documentation generated: README.md"
+# Test
+test: $(HAIKU_API)
+	@echo "🧪 Testing..."
+	./$(HAIKU_API) --test
+	@echo "✅ Tests completed"
 
-# Help target
+# Help
 help:
-	@echo "UserlandVM-HIT Enhanced Makefile"
-	@echo "================================="
+	@echo "UserlandVM Build System"
+	@echo "======================="
 	@echo ""
-	@echo "Build Targets:"
-	@echo "  all           - Build master VM (default)"
-	@echo "  enhanced      - Build enhanced VM version"
-	@echo "  complete      - Build complete VM version"
-	@echo "  all-versions  - Build all VM versions"
+	@echo "Targets:"
+	@echo "  all       - Build main VM (default)"
+	@echo "  api       - Build Haiku API Virtualizer (all 6 kits)"
+	@echo "  debug     - Build with debug flags"
+	@echo "  clean     - Remove build artifacts"
+	@echo "  install   - Install to system"
+	@echo "  test      - Run tests"
+	@echo "  help      - Show this help"
 	@echo ""
-	@echo "Test Targets:"
-	@echo "  test          - Test master VM"
-	@echo "  test-all      - Test all VM versions"
-	@echo "  test-binary   - Create Haiku test binary"
+	@echo "Usage:"
+	@echo "  make              # Build main VM"
+	@echo "  make api          # Build Haiku API virtualizer"
+	@echo "  make api install  # Build and install"
 	@echo ""
-	@echo "Utility Targets:"
-	@echo "  install       - Install to system"
-	@echo "  clean         - Clean build artifacts"
-	@echo "  deep-clean   - Deep clean including tests"
-	@echo "  docs          - Generate documentation"
-	@echo "  help          - Show this help"
-
-# Phony targets
-.PHONY: all enhanced complete all-versions test test-all test-binary install clean deep-clean docs help
-
-# Default goal
-.DEFAULT_GOAL := all
+	@echo "Haiku Kits Available:"
+	@echo "  • Storage Kit     - File system operations"
+	@echo "  • Interface Kit  - GUI and windows"
+	@echo "  • Application Kit - Messaging and app lifecycle"
+	@echo "  • Support Kit    - BString, BList, etc."
+	@echo "  • Network Kit    - Sockets and HTTP"
+	@echo "  • Media Kit     - Audio/video"
