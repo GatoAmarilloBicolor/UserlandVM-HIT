@@ -7,8 +7,8 @@
 
 CXX = g++
 CC = gcc
-CXXFLAGS = -std=c++17 -O2 -Wall -Wextra -fPIC -g -I.
-CFLAGS = -std=c99 -O2 -Wall -Wextra -fPIC -g -I.
+CXXFLAGS = -std=c++17 -O2 -Wall -Wextra -fPIC -g -I. -Ihaiku/headers
+CFLAGS = -std=c99 -O2 -Wall -Wextra -fPIC -g -I. -Ihaiku/headers
 LDFLAGS = -lstdc++ -lpthread -ldl
 
 # Main binary
@@ -24,12 +24,15 @@ CORE_SOURCES = \
 	DebugOutput.cpp \
 	SyscallDispatcher.cpp
 
-# Haiku API Virtualizer components
+# Haiku API Virtualizer components (all 6 kits)
 HAIKU_VIRTUALIZER_SOURCES = \
-	HaikuAPIVirtualizer.cpp \
-	HaikuSyscallDispatcher.cpp \
-	HaikuStorageKit.cpp \
-	HaikuApplicationServer.cpp
+	haiku/implementation/HaikuAPIVirtualizer.cpp \
+	haiku/implementation/HaikuSupportKit.cpp \
+	haiku/implementation/HaikuStorageKit.cpp \
+	haiku/implementation/HaikuInterfaceKit.cpp \
+	haiku/implementation/HaikuInterfaceKitSimple.cpp \
+	haiku/implementation/HaikuApplicationKit.cpp \
+	haiku/implementation/HaikuNetworkKit.cpp
 
 # Application entry point
 MAIN_SOURCES = \
