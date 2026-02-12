@@ -25,8 +25,11 @@ SOURCES = \
 	SymbolResolver.cpp \
 	DebugOutput.cpp
 
-# BeAPI Wrapper (must be compiled with Be API headers)
+# BeAPI Wrapper (NON-HEADLESS version - must be compiled with Be API headers)
 BEAPI_SOURCES = BeAPIWrapper.cpp
+
+# Exclude headless implementations to ensure GUI works
+EXCLUDE_SOURCES = TerminalOutput.cpp
 
 # Object files
 OBJECTS = $(SOURCES:.cpp=.o) $(BEAPI_SOURCES:.cpp=.o)
@@ -41,10 +44,12 @@ all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
 	@echo "=========================================="
-	@echo "  Linking WebPositive VM"
+	@echo "  Linking WebPositive VM (NON-HEADLESS)"
 	@echo "=========================================="
+	@echo "  Using BeAPIWrapper.cpp (real GUI)"
+	@echo "  Excluding TerminalOutput.cpp (headless)"
 	$(CXX) $(CXXFLAGS) $(OBJECTS) -o $(TARGET) $(LDFLAGS)
-	@echo "✓ Build successful: $(TARGET)"
+	@echo "✓ Build successful: $(TARGET) (non-headless GUI)"
 	@ls -lh $(TARGET)
 
 # Standard compilation
