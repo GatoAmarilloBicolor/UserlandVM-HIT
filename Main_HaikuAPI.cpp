@@ -83,8 +83,9 @@ public:
         // Initialize guest context
         guest_context = std::make_unique<X86_32GuestContext>(*address_space);
         
-        // Initialize syscall dispatcher (using existing one)
-        syscall_dispatcher = std::make_unique<SyscallDispatcher>();
+        // Initialize Interface Kit
+        interface_kit = &HaikuInterfaceKitSimple::GetInstance();
+        interface_kit->Initialize();
         
         // Initialize interpreter with dispatcher
         interpreter = std::make_unique<InterpreterX86_32>(*address_space, *syscall_dispatcher);
