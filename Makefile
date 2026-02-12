@@ -1,6 +1,6 @@
 # ============================================================================
 # UserlandVM - Unified Build System
-# Supports: Classic VM, Haiku API Virtualizer, Modular, WebKit, Libroot
+# Complete Haiku API Virtualizer with 6 Kits
 # ============================================================================
 
 # Configuration
@@ -11,13 +11,8 @@ CFLAGS = -std=c99 -O2 -Wall -Wextra -fPIC -g
 INCLUDES = -I. -Iplatform -Iplatform/haiku -Ihaiku/headers
 LDFLAGS = -lstdc++ -lpthread -ldl
 
-# ============================================================================
-# TARGETS
-# ============================================================================
-
-# Main targets
-MASTER_VM = userlandvm
-HAIKU_API = userlandvm_haiku_api
+# Main target
+TARGET = userlandvm
 
 # ============================================================================
 # SOURCE FILES
@@ -33,8 +28,8 @@ CORE_SOURCES = \
 	DebugOutput.cpp \
 	SyscallDispatcher.cpp
 
-# Haiku API Virtualizer components (all 6 kits)
-HAIKU_API_SOURCES = \
+# Haiku API Virtualizer (all 6 kits)
+HAIKU_SOURCES = \
 	haiku/implementation/HaikuAPIVirtualizer.cpp \
 	haiku/implementation/HaikuSupportKit.cpp \
 	haiku/implementation/HaikuStorageKit.cpp \
@@ -43,68 +38,65 @@ HAIKU_API_SOURCES = \
 	haiku/implementation/HaikuApplicationKit.cpp \
 	haiku/implementation/HaikuNetworkKit.cpp
 
-# Main entry points
-MAIN_HAIKU_API = Main_HaikuAPI.cpp
+# Main entry point
+MAIN_SOURCE = Main_HaikuAPI.cpp
 
 # All sources
-ALL_SOURCES = $(CORE_SOURCES) $(HAIKU_API_SOURCES) $(MAIN_HAIKU_API)
+ALL_SOURCES = $(CORE_SOURCES) $(HAIKU_SOURCES) $(MAIN_SOURCE)
 OBJECTS = $(ALL_SOURCES:.cpp=.o)
 
 # ============================================================================
 # BUILD RULES
 # ============================================================================
 
-.PHONY: all clean help haiku api debug install test
+.PHONY: all clean help debug install test
 
-# Default: build main VM
-all: $(MASTER_VM)
+# Default: build main VM with all 6 Haiku kits
+all: $(TARGET)
 
-# Build Haiku API virtualizer
-api: $(HAIKU_API)
-
-$(MASTER_VM): $(filter-out $(HAIKU_API_SOURCES) $(MAIN_HAIKU_API),$(OBJECTS))
-	@echo "Building UserlandVM..."
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $(filter-out $(HAIKU_API_SOURCES) $(MAIN_HAIKU_API),$(ALL_SOURCES:.cpp=.o)) $(LDFLAGS)
-	@echo "✅ Built: $@"
-
-$(HAIKU_API): $(OBJECTS)
+$(TARGET): $(OBJECTS)
 	@echo "================================================================="
-	@echo "  Building UserlandVM Haiku API Virtualizer"
+	@echo "  Building UserlandVM with Haiku API Virtualizer"
 	@echo "================================================================="
-	@echo "  ✨ Complete Haiku/BeOS API Implementation"
-	@echo "  📁 Storage Kit | 🎨 Interface Kit | 🔗 Application Kit"
-	@echo "  📦 Support Kit | 🌐 Network Kit | 🎬 Media Kit"
+	@echo "  🎉 Complete Haiku/BeOS API Implementation"
+	@echo "  📦 Storage Kit     - File system operations"
+	@echo "  🎨 Interface Kit   - GUI and window management"
+	@echo "  🔗 Application Kit - Messaging and app lifecycle"
+	@echo "  📦 Support Kit    - BString, BList, BLocker"
+	@echo "  🌐 Network Kit    - Sockets and HTTP client"
+	@echo "  🎬 Media Kit      - Audio and video processing"
 	@echo "================================================================="
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $@ $(OBJECTS) $(LDFLAGS)
-	@echo "✅ Haiku API Virtualizer built: $@"
+	@echo "✅ Built: $@"
 	@ls -lh $@
 
+# Compile source files
 %.o: %.cpp
 	@echo "🔨 Compiling $<"
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
 # Debug build
 debug: CXXFLAGS += -DDEBUG -O0
-debug: all
+debug: $(TARGET)
+	@echo "🔧 Debug build complete"
 
 # Clean
 clean:
 	@echo "🧹 Cleaning..."
-	rm -f *.o $(MASTER_VM) $(HAIKU_API)
+	rm -f *.o $(TARGET)
 	@echo "✅ Clean completed"
 
 # Install
-install: $(HAIKU_API)
+install: $(TARGET)
 	@echo "📦 Installing..."
-	sudo cp $(HAIKU_API) /usr/local/bin/
-	sudo chmod +x /usr/local/bin/$(HAIKU_API)
-	@echo "✅ Installed to /usr/local/bin/$(HAIKU_API)"
+	sudo cp $(TARGET) /usr/local/bin/
+	sudo chmod +x /usr/local/bin/$(TARGET)
+	@echo "✅ Installed to /usr/local/bin/$(TARGET)"
 
 # Test
-test: $(HAIKU_API)
+test: $(TARGET)
 	@echo "🧪 Testing..."
-	./$(HAIKU_API) --test
-	@echo "✅ Tests completed"
+	./$(TARGET) --test
 
 # Help
 help:
@@ -112,8 +104,7 @@ help:
 	@echo "======================="
 	@echo ""
 	@echo "Targets:"
-	@echo "  all       - Build main VM (default)"
-	@echo "  api       - Build Haiku API Virtualizer (all 6 kits)"
+	@echo "  all       - Build main VM with Haiku API (default)"
 	@echo "  debug     - Build with debug flags"
 	@echo "  clean     - Remove build artifacts"
 	@echo "  install   - Install to system"
@@ -121,14 +112,19 @@ help:
 	@echo "  help      - Show this help"
 	@echo ""
 	@echo "Usage:"
-	@echo "  make              # Build main VM"
-	@echo "  make api          # Build Haiku API virtualizer"
-	@echo "  make api install  # Build and install"
+	@echo "  make              # Build"
+	@echo "  make debug       # Debug build"
+	@echo "  make install     # Install"
+	@echo "  make test        # Test"
 	@echo ""
-	@echo "Haiku Kits Available:"
-	@echo "  • Storage Kit     - File system operations"
-	@echo "  • Interface Kit  - GUI and windows"
-	@echo "  • Application Kit - Messaging and app lifecycle"
-	@echo "  • Support Kit    - BString, BList, etc."
-	@echo "  • Network Kit    - Sockets and HTTP"
-	@echo "  • Media Kit     - Audio/video"
+	@echo "Run Haiku apps:"
+	@echo "  ./userlandvm /system/apps/WebPositive"
+	@echo "  ./userlandvm /system/apps/Terminal --verbose"
+	@echo ""
+	@echo "Haiku API Kits (6 total):"
+	@echo "  • Storage     - BFile, BDirectory, BEntry, BPath"
+	@echo "  • Interface   - BWindow, BView, BApplication, BBitmap"
+	@echo "  • Application - BMessage, BLooper, BMessenger, BHandler"
+	@echo "  • Support     - BString, BList, BLocker, BPoint, BRect"
+	@echo "  • Network    - BSocket, BUrl, BHttp, BDNS"
+	@echo "  • Media      - BSoundPlayer, BMediaFile, BMediaNode"
