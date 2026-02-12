@@ -13,6 +13,7 @@
 #include <vector>
 #include <mutex>
 #include <algorithm>
+#include <map>
 
 // Haiku Support Kit constants
 #define HAIKU_MAX_STRINGS           2048
@@ -47,6 +48,11 @@ struct HaikuString {
         }
     }
 };
+
+// Forward declarations
+class HaikuList;
+class HaikuObjectList;
+class HaikuLocker;
 
 /**
  * Haiku list item structure
