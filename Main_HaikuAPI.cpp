@@ -125,7 +125,7 @@ public:
         }
         
         // Get entry point and program info
-        entry_point = reinterpret_cast<uint32_t>(loaded_image->GetEntry());
+        entry_point = (uint32_t)(uintptr_t)loaded_image->GetEntry();
         is_dynamic = loaded_image->IsDynamic();
         
         printf("[HAIKU_VIRT] ============================================\n");
@@ -147,7 +147,7 @@ public:
         
         printf("[HAIKU_VIRT] ============================================\n");
         printf("[HAIKU_VIRT] 🚀 Starting Haiku application execution\n");
-        printf("[HAIKU_VIRT] 📊 Max instructions: %llu\n", max_instructions);
+        printf("[HAIKU_VIRT] 📊 Max instructions: %lu\n", (unsigned long)max_instructions);
         printf("[HAIKU_VIRT] 🎯 Entry point: 0x%08x\n", entry_point);
         printf("[HAIKU_VIRT] ============================================\n\n");
         
@@ -260,7 +260,7 @@ int main(int argc, char* argv[]) {
             printf("[MAIN] 🐛 Debug mode enabled\n");
         } else if (arg == "--max-instructions" && i + 1 < argc) {
             max_instructions = std::stoull(argv[++i]);
-            printf("[MAIN] 📊 Max instructions: %llu\n", max_instructions);
+            printf("[MAIN] 📊 Max instructions: %lu\n", (unsigned long)max_instructions);
         }
     }
     
