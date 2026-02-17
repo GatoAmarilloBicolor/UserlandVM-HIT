@@ -78,8 +78,8 @@ DirectAddressSpace::Init(size_t size)
 	fGuestBaseAddress = (uintptr_t)memoryBase;
 	fGuestSize = size;
 	
-	printf("[HAIKU] Created guest memory area: id=%d, base=%p, size=%zu\n", 
-		guestArea, memoryBase, size);
+	printf("[HAIKU] Created guest memory area: base=%p, size=%zu\n", 
+		memoryBase, size);
 
 	return B_OK;
 }
@@ -317,8 +317,8 @@ DirectAddressSpace::MapTLSArea(uintptr_t guest_vaddr, size_t size)
 	fMappings[fMappingCount].offset = offset;
 	fMappingCount++;
 	
-	printf("DirectAddressSpace: Mapped TLS area 0x%08x-0x%08lx -> offset 0x%08x\n",
-		guest_vaddr, guest_vaddr + size, offset);
+	printf("DirectAddressSpace: Mapped TLS area 0x%08lx-0x%08lx -> offset 0x%08lx\n",
+		(unsigned long)guest_vaddr, (unsigned long)(guest_vaddr + size), (unsigned long)offset);
 	
 	return B_OK;
 }

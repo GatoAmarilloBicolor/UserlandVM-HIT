@@ -3052,7 +3052,7 @@ status_t InterpreterX86_32::Execute_INT(GuestContext &context,
       uint32_t result = 0;
       
       // Try GUI dispatcher first
-      RealSyscallDispatcher *real_dispatcher = dynamic_cast<RealSyscallDispatcher*>(&fDispatcher);
+      HaikuVM::RealSyscallDispatcher *real_dispatcher = dynamic_cast<HaikuVM::RealSyscallDispatcher*>(&fDispatcher);
       if (real_dispatcher && real_dispatcher->HandleGUISyscall(regs.eax, args, &result)) {
         regs.eax = result;
         printf("[SYSCALL-GUI] ✅ SUCCESS - returned %u\n", result);

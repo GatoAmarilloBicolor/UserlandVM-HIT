@@ -1,202 +1,251 @@
+/*
+ * SimpleSyscallDispatcher.cpp - Simplified Syscall Dispatcher Implementation
+ */
+
 #include "SimpleSyscallDispatcher.h"
-#include <iostream>
+#include "X86_32GuestContext.h"
+#include <cstdio>
 #include <cstring>
-#include <cerrno>
-#include <vector>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <errno.h>
 
 SimpleSyscallDispatcher::SimpleSyscallDispatcher(AddressSpace& addressSpace)
-    : fAddressSpace(addressSpace), fHeapBase(0x08000000), fHeapCurrent(0x08000000) {
+    : fAddressSpace(addressSpace), next_fd_(3) {
+    memset(file_descriptors_, 0, sizeof(file_descriptors_));
+    current_process_ = {1000, 0, true};
+    memset(&stats_, 0, sizeof(stats_));
 }
 
 SimpleSyscallDispatcher::~SimpleSyscallDispatcher() {
-    // Cleanup if needed
 }
 
-uint32_t SimpleSyscallDispatcher::HandleSyscall(uint32_t number, uint32_t arg1, uint32_t arg2, uint32_t arg3) {
-    std::cout << "SYSCALL: " << number << "(" << arg1 << ", " << arg2 << ", " << arg3 << ")" << std::endl;
+void SimpleSyscallDispatcher::LogSyscall(GuestContext& context, uint32_t syscall_num, const char* name) {
+    X86_32GuestContext &x86_context = static_cast<X86_32GuestContext&>(context);
+    X86_32Registers &regs = x86_context.Register();
+    printf("[SYSCALL] %s(%u) EBX=0x%08x ECX=0x%08x EDX=0x%08x\n", 
+           name, syscall_num, regs.ebx, regs.ecx, regs.edx);
+}
+
+uint32_t SimpleSyscallDispatcher::GetArgument(GuestContext& context, int arg_num) {
+    X86_32GuestContext &x86_context = static_cast<X86_32GuestContext&>(context);
+    X86_32Registers &regs = x86_context.Register();
     
-    switch (number) {
+    switch(arg_num) {
+        case 0: return regs.ebx;
+        case 1: return regs.ecx;
+        case 2: return regs.edx;
+        case 3: return regs.esi;
+        case 4: return regs.edi;
+        case 5: return regs.ebp;
+        default: return 0;
+    }
+}
+
+const char* SimpleSyscallDispatcher::GetString(GuestContext& context, uint32_t addr) {
+    static char buffer[256];
+    if (fAddressSpace.Read(addr, buffer, sizeof(buffer) - 1) == B_OK) {
+        buffer[sizeof(buffer) - 1] = '\0';
+        return buffer;
+    }
+    return "";
+}
+
+int SimpleSyscallDispatcher::GetHostFd(uint32_t guest_fd) {
+    for (int i = 0; i < 32; i++) {
+        if (file_descriptors_[i].fd == (int)guest_fd) {
+            return file_descriptors_[i].host_fd;
+        }
+    }
+    return -1;
+}
+
+void SimpleSyscallDispatcher::RemoveFd(uint32_t guest_fd) {
+    for (int i = 0; i < 32; i++) {
+        if (file_descriptors_[i].fd == (int)guest_fd) {
+            file_descriptors_[i].fd = -1;
+            break;
+        }
+    }
+}
+
+int SimpleSyscallDispatcher::GetNextFd() {
+    return next_fd_++;
+}
+
+status_t SimpleSyscallDispatcher::HandleSyscall(GuestContext& context, uint32_t syscall_num) {
+    X86_32GuestContext &x86_context = static_cast<X86_32GuestContext&>(context);
+    X86_32Registers &regs = x86_context.Register();
+    
+    stats_.total_syscalls++;
+    
+    switch (syscall_num) {
         case 1: // exit
-            std::cout << "Process exiting with status: " << arg1 << std::endl;
-            return 0;
-            
-        case 3: { // read
-            uint32_t fd = arg1;
-            uint32_t buffer = arg2;
-            uint32_t count = arg3;
-            
-            std::cout << "READ: fd=" << fd << ", buffer=0x" << std::hex << buffer 
-                     << ", count=" << std::dec << count << std::endl;
-            
-            if (fd == 0) { // stdin
-                // For testing, return 0 (EOF)
-                return 0;
-            } else {
-                return -EBADF;
-            }
-        }
-        
-        case 4: { // write
-            uint32_t fd = arg1;
-            uint32_t buffer = arg2;
-            uint32_t count = arg3;
-            
-            std::cout << "WRITE: fd=" << fd << ", buffer=0x" << std::hex << buffer 
-                     << ", count=" << std::dec << count << std::endl;
-            
-            if (fd == 1 || fd == 2) { // stdout or stderr
-                // Read the message from guest memory
-                std::vector<char> msg(count + 1, 0);
-                if (fAddressSpace.Read(buffer, reinterpret_cast<uint8_t*>(msg.data()), count)) {
-                    std::cout << "GUEST OUTPUT: " << msg.data() << std::endl;
-                    return count;
-                } else {
-                    std::cout << "Failed to read from guest memory" << std::endl;
-                    return -EFAULT;
-                }
-            } else {
-                return -EBADF;
-            }
-        }
-        
-        case 45: { // brk
-            uint32_t new_brk = arg1;
-            
-            std::cout << "BRK: new_brk=0x" << std::hex << new_brk << std::dec << std::endl;
-            
-            if (new_brk == 0) {
-                // Return current break
-                return fHeapCurrent;
-            } else if (new_brk >= fHeapBase && new_brk < fHeapBase + 0x10000000) {
-                // Valid break address
-                fHeapCurrent = new_brk;
-                return fHeapCurrent;
-            } else {
-                return -ENOMEM;
-            }
-        }
-        
-        case 20: { // getpid
-            std::cout << "GETPID" << std::endl;
-            return 1234;  // Fake process ID
-        }
-        
-        case 90: { // mprotect
-            uint32_t addr = arg1;
-            uint32_t len = arg2;
-            uint32_t prot = arg3;
-            
-            std::cout << "MPROTECT: addr=0x" << std::hex << addr << ", len=" << std::dec << len 
-                     << ", prot=" << std::hex << prot << std::dec << std::endl;
-            
-            // For simplicity, always succeed
-            return 0;
-        }
-        
-        case 122: { // uname
-            uint32_t buf = arg1;
-            
-            std::cout << "UNAME: buf=0x" << std::hex << buf << std::dec << std::endl;
-            
-            // For simplicity, return error
-            return -ENOSYS;
-        }
-        
-        case 125: { // mprotect (alternative)
-            uint32_t addr = arg1;
-            uint32_t len = arg2;
-            uint32_t prot = arg3;
-            
-            std::cout << "MPROTECT(125): addr=0x" << std::hex << addr << ", len=" << std::dec << len 
-                     << ", prot=" << std::hex << prot << std::dec << std::endl;
-            
-            return 0;
-        }
-        
-        case 192: { // mmap2
-            uint32_t addr = arg1;
-            uint32_t length = arg2;
-            uint32_t prot = arg3;
-            uint32_t flags = arg4;
-            uint32_t fd = arg5;
-            uint32_t offset = arg6;
-            
-            std::cout << "MMAP2: addr=0x" << std::hex << addr << ", length=" << std::dec << length 
-                     << ", prot=" << std::hex << prot << ", flags=" << flags 
-                     << ", fd=" << std::dec << fd << ", offset=" << offset << std::endl;
-            
-            // For simplicity, return a fake address
-            static uint32_t mmap_counter = 0x60000000;
-            uint32_t result = mmap_counter;
-            mmap_counter += 0x1000;
-            
-            return result;
-        }
-        
-        case 195: { // stat64
-            uint32_t filename = arg1;
-            uint32_t statbuf = arg2;
-            
-            std::cout << "STAT64: filename=0x" << std::hex << filename 
-                     << ", statbuf=0x" << statbuf << std::dec << std::endl;
-            
-            // For simplicity, return file not found
-            return -ENOENT;
-        }
-        
-        case 240: { // fcntl64
-            uint32_t fd = arg1;
-            uint32_t cmd = arg2;
-            uint32_t arg = arg3;
-            
-            std::cout << "FCNTL64: fd=" << fd << ", cmd=" << cmd << ", arg=" << arg << std::endl;
-            
-            // For simplicity, always succeed
-            return 0;
-        }
-        
+            return Syscall_Exit(context);
+        case 3: // read
+            return Syscall_Read(context);
+        case 4: // write
+            return Syscall_Write(context);
+        case 5: // open
+            return Syscall_Open(context);
+        case 6: // close
+            return Syscall_Close(context);
+        case 9: // mmap
+            return Syscall_Mmap(context);
+        case 10: // mprotect
+            return Syscall_Mprotect(context);
+        case 11: // munmap
+            return Syscall_Munmap(context);
+        case 12: // brk
+            return Syscall_Brk(context);
+        case 20: // getpid
+            regs.eax = 1000;
+            return B_OK;
         default:
-            std::cout << "UNHANDLED SYSCALL: " << number << std::endl;
-            return -ENOSYS;
+            LogSyscall(context, syscall_num, "Unknown");
+            regs.eax = 0;
+            return B_OK;
     }
 }
 
-void SimpleSyscallDispatcher::LogRegisterState(const std::string& operation, uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx) {
-    std::cout << "REGS [" << operation << "]: EAX=0x" << std::hex << eax 
-             << ", EBX=0x" << ebx << ", ECX=0x" << ecx 
-             << ", EDX=0x" << edx << std::dec << std::endl;
+status_t SimpleSyscallDispatcher::Syscall_Exit(GuestContext& context) {
+    X86_32GuestContext &x86_context = static_cast<X86_32GuestContext&>(context);
+    X86_32Registers &regs = x86_context.Register();
+    
+    printf("[EXIT] Process exiting with code %d\n", regs.ebx);
+    current_process_.exit_status = regs.ebx;
+    current_process_.is_running = false;
+    
+    return B_ERROR;
 }
 
-bool SimpleSyscallDispatcher::ValidateMemoryAccess(uint32_t address, uint32_t size) {
-    // Simple validation - check if address is in reasonable range
-    if (address < 0x08000000 || address > 0xC0000000) {
-        return false;
-    }
-    if (address + size > 0xC0000000) {
-        return false;
-    }
-    return true;
-}
-
-void SimpleSyscallDispatcher::SetProcessArgs(int argc, char* argv[], char* envp[]) {
-    // Store process arguments for later use
-    fArgc = argc;
-    fArgv = argv;
-    fEnvp = envp;
-}
-
-uint32_t SimpleSyscallDispatcher::GetProcessArgsSize() {
-    if (!fArgv || fArgc == 0) {
-        return 0;
+status_t SimpleSyscallDispatcher::Syscall_Read(GuestContext& context) {
+    X86_32GuestContext &x86_context = static_cast<X86_32GuestContext&>(context);
+    X86_32Registers &regs = x86_context.Register();
+    
+    stats_.read_syscalls++;
+    
+    int host_fd = GetHostFd(regs.ebx);
+    if (host_fd < 0) {
+        regs.eax = -EBADF;
+        return B_OK;
     }
     
-    uint32_t size = sizeof(uint32_t) * (fArgc + 1); // argv array
+    char buffer[4096];
+    uint32_t count = regs.edx;
+    if (count > sizeof(buffer)) count = sizeof(buffer);
     
-    for (int i = 0; i < fArgc; i++) {
-        if (fArgv[i]) {
-            size += strlen(fArgv[i]) + 1;
-        }
+    ssize_t bytes_read = read(host_fd, buffer, count);
+    if (bytes_read > 0) {
+        fAddressSpace.Write(regs.ecx, buffer, bytes_read);
+    }
+    regs.eax = bytes_read;
+    
+    return B_OK;
+}
+
+status_t SimpleSyscallDispatcher::Syscall_Write(GuestContext& context) {
+    X86_32GuestContext &x86_context = static_cast<X86_32GuestContext&>(context);
+    X86_32Registers &regs = x86_context.Register();
+    
+    stats_.write_syscalls++;
+    
+    int host_fd = GetHostFd(regs.ebx);
+    if (host_fd < 0) {
+        regs.eax = -EBADF;
+        return B_OK;
     }
     
-    return size;
+    char buffer[4096];
+    uint32_t count = regs.edx;
+    if (count > sizeof(buffer)) count = sizeof(buffer);
+    
+    fAddressSpace.Read(regs.ecx, buffer, count);
+    ssize_t bytes_written = write(host_fd, buffer, count);
+    regs.eax = bytes_written;
+    
+    return B_OK;
+}
+
+status_t SimpleSyscallDispatcher::Syscall_Open(GuestContext& context) {
+    X86_32GuestContext &x86_context = static_cast<X86_32GuestContext&>(context);
+    X86_32Registers &regs = x86_context.Register();
+    
+    const char* path = GetString(context, regs.ebx);
+    int flags = regs.ecx;
+    int mode = regs.edx;
+    
+    int host_fd = open(path, flags, mode);
+    if (host_fd < 0) {
+        regs.eax = -errno;
+        return B_OK;
+    }
+    
+    int guest_fd = GetNextFd();
+    file_descriptors_[guest_fd % 32].fd = guest_fd;
+    file_descriptors_[guest_fd % 32].host_fd = host_fd;
+    regs.eax = guest_fd;
+    
+    return B_OK;
+}
+
+status_t SimpleSyscallDispatcher::Syscall_Close(GuestContext& context) {
+    X86_32GuestContext &x86_context = static_cast<X86_32GuestContext&>(context);
+    X86_32Registers &regs = x86_context.Register();
+    
+    int host_fd = GetHostFd(regs.ebx);
+    if (host_fd >= 0) {
+        close(host_fd);
+        RemoveFd(regs.ebx);
+    }
+    regs.eax = 0;
+    
+    return B_OK;
+}
+
+status_t SimpleSyscallDispatcher::Syscall_Mmap(GuestContext& context) {
+    X86_32GuestContext &x86_context = static_cast<X86_32GuestContext&>(context);
+    X86_32Registers &regs = x86_context.Register();
+    
+    void* ptr = mmap((void*)regs.ebx, regs.ecx, regs.edx, regs.esi, regs.edi, regs.ebp);
+    if (ptr == MAP_FAILED) {
+        regs.eax = -ENOMEM;
+    } else {
+        regs.eax = (uint32_t)(uintptr_t)ptr;
+    }
+    
+    return B_OK;
+}
+
+status_t SimpleSyscallDispatcher::Syscall_Mprotect(GuestContext& context) {
+    X86_32GuestContext &x86_context = static_cast<X86_32GuestContext&>(context);
+    X86_32Registers &regs = x86_context.Register();
+    
+    regs.eax = mprotect((void*)regs.ebx, regs.ecx, regs.edx);
+    return B_OK;
+}
+
+status_t SimpleSyscallDispatcher::Syscall_Munmap(GuestContext& context) {
+    X86_32GuestContext &x86_context = static_cast<X86_32GuestContext&>(context);
+    X86_32Registers &regs = x86_context.Register();
+    
+    regs.eax = munmap((void*)regs.ebx, regs.ecx);
+    return B_OK;
+}
+
+status_t SimpleSyscallDispatcher::Syscall_Brk(GuestContext& context) {
+    X86_32GuestContext &x86_context = static_cast<X86_32GuestContext&>(context);
+    X86_32Registers &regs = x86_context.Register();
+    
+    regs.eax = regs.ebx;
+    return B_OK;
+}
+
+void SimpleSyscallDispatcher::PrintStats() const {
+    printf("=== SYSCALL STATS ===\n");
+    printf("Total: %lu\n", stats_.total_syscalls);
+    printf("Read: %lu\n", stats_.read_syscalls);
+    printf("Write: %lu\n", stats_.write_syscalls);
+    printf("==================\n");
 }

@@ -26,7 +26,7 @@ CORE_SOURCES = \
 	InterpreterX86_32.cpp \
 	SymbolResolver.cpp \
 	DebugOutput.cpp \
-	SyscallDispatcher.cpp
+	SimpleSyscallDispatcher.cpp
 
 # Haiku API Virtualizer (all 6 kits)
 HAIKU_SOURCES = \
